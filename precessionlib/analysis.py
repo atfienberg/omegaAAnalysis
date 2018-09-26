@@ -7,7 +7,7 @@ import math
 import subprocess
 import ROOT as r
 from BlindersPy3 import Blinders, FitType
-from .gm2util import *
+from .util import *
 from .fitmodels import *
 
 r.gStyle.SetOptStat(0)

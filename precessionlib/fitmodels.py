@@ -6,7 +6,7 @@
 # September 2018
 
 import ROOT as r
-from .gm2util import *
+from .util import *
 import os
 
 # load some root functions and variables into the interpreter
