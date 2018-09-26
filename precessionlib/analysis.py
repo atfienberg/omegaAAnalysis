@@ -1,4 +1,6 @@
-# provides the analyze_omega_a function
+# omega_a analysis functions
+#
+# also contains the run_analysis driver function
 #
 # Aaron Fienberg
 # September 2018
