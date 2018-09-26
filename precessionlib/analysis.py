@@ -19,8 +19,15 @@ calo_dirname = 'perCaloPlots'
 e_sweep_dirname = 'energyBinnedPlots'
 
 
-def do_threshold_sweep(all_calo_2d, fit_function, fit_start=30, fit_end=400,
+def do_threshold_sweep(all_calo_2d, fit_function, fit_start, fit_end,
                        start_thresh=1800):
+    ''' finds the optimal T-method threshold
+        returns:
+        (best_threshold, [(thresh1, r_precision1, thresh2, preceision2),...])
+
+        thresholds are in units of bin number from all_calo_2d's y axis
+    '''
+
     thresh_bin = all_calo_2d.GetYaxis().FindBin(start_thresh)
 
     r_precisions = []
