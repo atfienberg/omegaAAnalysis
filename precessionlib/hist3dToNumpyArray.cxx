@@ -15,7 +15,7 @@ int fillHist3dErrors(const double* data, std::size_t size,
                      const char* histName);
 }
 
-int checkHist(std::size_t size, const TH3D* hist) {
+int checkHist(std::size_t size, const TH3* hist) {
   if (hist == nullptr) {
     return errHistNotFound;
   }
@@ -30,7 +30,7 @@ int checkHist(std::size_t size, const TH3D* hist) {
 }
 
 int hist3dToNumpyArray(double* data, std::size_t size, const char* histName) {
-  const TH3D* hist = (TH3D*)gROOT->FindObject(histName);
+  const TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;
@@ -49,7 +49,7 @@ int hist3dToNumpyArray(double* data, std::size_t size, const char* histName) {
 
 int numpyArrayToHist3d(const double* data, std::size_t size,
                        const char* histName) {
-  TH3D* hist = (TH3D*)gROOT->FindObject(histName);
+  TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;
@@ -68,7 +68,7 @@ int numpyArrayToHist3d(const double* data, std::size_t size,
 
 int fillHist3dErrors(const double* data, std::size_t size,
                      const char* histName) {
-  TH3D* hist = (TH3D*)gROOT->FindObject(histName);
+  TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;

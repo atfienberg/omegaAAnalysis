@@ -49,6 +49,7 @@ class CaloSpectra:
 
         file = r.TFile(rootfilename)
         hist = file.Get(histname)
+        hist.SetDirectory(r.gROOT)
 
         out._axes = [CaloSpectra.build_axis(hist, i) for i in range(3)]
 
