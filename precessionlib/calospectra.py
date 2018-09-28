@@ -368,13 +368,14 @@ class CaloSpectra:
 
     # load C functions for filling a numpy array from a root 3d hist
     # and vice versa
+    file_dir = os.path.dirname(os.path.realpath(__file__))
     try:
         _histConvertLib = ctypes.cdll.LoadLibrary(
-            './hist3dToNumpyArray.so')
+            f'{file_dir}/hist3dToNumpyArray.so')
     except OSError:
         # try to compile the needed C++ code
         cwd = os.getcwd()
-        os.chdir(os.path.dirname(os.path.realpath(__file__)))
+        os.chdir(file_dir)
         subprocess.call(['make'])
         _histConvertLib = ctypes.cdll.LoadLibrary(
             './hist3dToNumpyArray.so')
