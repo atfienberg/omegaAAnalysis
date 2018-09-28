@@ -18,6 +18,9 @@ r.gStyle.SetOptFit(1111)
 calo_dirname = 'perCaloPlots'
 e_sweep_dirname = 'energyBinnedPlots'
 
+# approximate omega_a period
+approx_oma_period = 4.37
+
 
 def do_threshold_sweep(all_calo_2d, fit_function, fit_start, fit_end,
                        start_thresh=1800):
@@ -114,6 +117,16 @@ def fit_slice(master_3d, name, model_fit,
     if adjust_N:
         model_fit.SetParameter(0,
                                hist.GetBinContent(hist.FindBin(30)) * 1.6)
+
+    # find a reasonable guess for the asymmetry
+    # by comparing max, min, avg over one period
+    if is_free_param(model_fit, 2):
+        start_bin = hist.FindBin(fit_range[0])
+        bins_per_period = int(approx_oma_period / hist.GetBinWidth(1))
+        vals = [hist.GetBinContent(i)
+                for i in range(start_bin, start_bin + bins_per_period)]
+        a_guess = (max(vals) - min(vals)) * len(vals) / sum(vals) / 2
+        model_fit.SetParameter(2, a_guess)
 
     resids, fft = fit_and_fft(
         hist, model_fit, name, fit_options, fit_range[0], fit_range[1])
@@ -780,7 +793,7 @@ def plot_pu_sweep_chi2(chi2_g, title):
     chi2_g_fit = r.TF1('pu_chi2_fit', '[1]*(x-[0])^2 + [2]')
     chi2_g_fit.SetParName(0, 'a')
     chi2_g_fit.SetParName(1, 'b')
-    chi2_g_fit.SetParName(1, 'c')
+    chi2_g_fit.SetParName(2, 'c')
     chi2_g_fit.SetParameter(0, min_chi2_mult)
     chi2_g_fit.SetParameter(1, 0)
     chi2_g_fit.SetParameter(2, min_chi2)
@@ -827,8 +840,7 @@ def run_analysis(config):
 
     blinder = Blinders(FitType.Omega_a, config['blinding_phrase'])
 
-    master_3d = get_histogram(config['hist_name'], config['file_name'])
-    uncorrected_3d = get_histogram(config['hist_name'].replace('_', '_un'),
+    uncorrected_3d = get_histogram(config['uncor_hist_name'],
                                    config['file_name'])
 
     all_calo_2d = master_3d.Project3D('yx_all')

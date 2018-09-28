@@ -268,7 +268,8 @@ class CaloSpectra:
         return trip_sum, trip_term_two, trip_term_three
 
     def _fit_pu_coeffs(self, calo_num, pu_comps,
-                       pu_energy_min, pu_energy_max, pu_time_min):
+                       pu_energy_min, pu_energy_max, pu_time_min,
+                       min_counts=20):
         ''' fit the scale/normalization factors for the pileup components
         pu_comps is a list of the pileup components, e.g. [doubles, triples]
         returns: (coefficients list, covariance matrix)
@@ -281,9 +282,16 @@ class CaloSpectra:
         # perturbed energy spectrum
         perturbed = self.calo_spec(calo_num)[:, times][energies, :].sum(axis=1)
 
+        # to keep fit reasonable,
+        # do not include bins with fewer than min_counts counts in the fit
+        high_count_bins = perturbed > min_counts
+        perturbed = perturbed[high_count_bins]
+
         # component energy spectra
         components = np.hstack(comp[:, times][energies, :].sum(axis=1)[
             :, None] for comp in pu_comps)
+        # remove the bins that had low counts
+        components = components[high_count_bins, :]
 
         # use Poisson errors,
         # sqrt of the bin content from the perturbed energy spec
