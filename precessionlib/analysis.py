@@ -131,6 +131,10 @@ def fit_slice(master_3d, name, model_fit,
     resids, fft = fit_and_fft(
         hist, model_fit, name, fit_options, fit_range[0], fit_range[1])
 
+    master_3d.GetXaxis().SetRange(1, master_3d.GetNbinsX())
+    master_3d.GetYaxis().SetRange(1, master_3d.GetNbinsY())
+    master_3d.GetZaxis().SetRange(1, master_3d.GetNbinsZ())
+
     return hist, resids, fft
 
 
@@ -169,7 +173,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
                                     best_T_hist.FindBin(30)) * 1.6)
     bin_width = best_T_hist.GetBinWidth(1)
     best_T_hist.SetTitle(
-        f'T-method, all calos, {best_thresh/1000:.2f} GeV threshold; ' +
+        f'T-Method, all calos, {best_thresh/1000:.2f} GeV threshold; ' +
         f'time [#mu s]; N / {bin_width:.3f} #mu s')
 
     print('five parameter fit to T method histogram...')
@@ -283,6 +287,49 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
     return results
 
 
+def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config):
+    ''' sweep over all calos, apply A-weighted fit to each one
+    returns a list of (hist, model_fit, resids, fft)) for each calo
+    uses model_fit to determine guesses for first calo
+    after that, it uses the results from the previous calo
+    '''
+
+    print('A-Weighted calo sweep...')
+    results = []
+    for i in range(1, 25):
+        model_fit = clone_full_fit_tf1(model_fit, f'Calo{i}AWeightFit')
+
+        print(f'calo {i}')
+
+        master_3d.GetZaxis().SetRange(i, i)
+
+        calo_2d = master_3d.Project3D('yx')
+        calo_2d.SetName(f'aWeightCalo{i}')
+
+        hist = build_a_weight_hist(
+            calo_2d, a_vs_e_spline, f'Calo{i}AWeightHist')
+
+        time_axis = calo_2d.GetXaxis()
+        bin_width = time_axis.GetBinWidth(1)
+        hist.SetTitle(f'Calo {i} A-Weighted;' +
+                      f't [#mus]; N / {bin_width:.3f} #mus')
+
+        if i == 1:
+            model_fit.SetParameter(
+                0, hist.GetBinContent(hist.FindBin(30)) * 1.6)
+
+        resids, fft = fit_and_fft(hist, model_fit, hist.GetName(),
+                                  config['fit_options'],
+                                  config['fit_start'], config['fit_end'])
+
+        fft.SetTitle(f'calo {i} A-Weighted')
+
+        results.append((hist, model_fit, resids, fft))
+
+    master_3d.GetZaxis().SetRange(1, master_3d.GetNbinsZ())
+    return results
+
+
 def energy_sweep(master_3d, model_fit, min_e, max_e, n_slices, config):
     ''' sweep over energy bins, fitting each one
     returns a list of (hist, [e_low, e_high], model_fit, resids, fft))
@@ -321,17 +368,23 @@ def energy_sweep(master_3d, model_fit, min_e, max_e, n_slices, config):
         # # adjust N only for the first calo
         adjust_N = True if i == 0 else False
 
+        calo_range = config['calo_range']
+
         hist, resids, fft = \
             fit_slice(master_3d, f'eBin{avg_e:.0f}', model_fit,
                       fit_options=config['fit_options'],
                       fit_range=(config['fit_start'],
                                  config['fit_end']),
                       energy_bins=(low_bin, high_bin),
-                      calo_bins=(1, master_3d.GetNbinsZ()),
+                      calo_bins=(calo_range[0], calo_range[1]),
                       adjust_N=adjust_N)
 
-        hist.SetTitle(f'all calos, {low_e:.0f} to {high_e:.0f} MeV')
-        fft.SetTitle(f'all calos, {low_e:.0f} to {high_e:.0f} MeV')
+        hist.SetTitle(
+            f'calos {calo_range[0]} through {calo_range[1]}, ' +
+            f'{low_e: .0f} to {high_e: .0f} MeV')
+        fft.SetTitle(
+            f'calos {calo_range[0]} through {calo_range[1]}, ' +
+            f'{low_e:.0f} to {high_e:.0f} MeV')
 
         results.append((hist, (low_e, high_e), model_fit, resids, fft))
 
@@ -516,8 +569,11 @@ def build_a_weight_hist(spec_2d, a_vs_e_spline, name,
     end_bin = spec_2d.GetYaxis().FindBin(max_e) + 1
 
     for e_bin in range(start_bin, end_bin):
-        energy_slice = spec_2d.ProjectionX(f'e_slice{e_bin}', e_bin, e_bin)
+        energy_slice = spec_2d.ProjectionX(
+            f'{name}e_slice{e_bin}', e_bin, e_bin)
+
         energy = spec_2d.GetYaxis().GetBinCenter(e_bin)
+
         a_weight_hist.Add(energy_slice, a_vs_e_spline.Eval(energy))
 
     return a_weight_hist
@@ -694,7 +750,7 @@ def plot_loss_hists(lost_muon_rate,
     return c, [plot_cumulative, leg]
 
 
-def print_calo_sweep_res(calo_sweep_res, chi2_g, par_gs, pdf_dir):
+def print_calo_sweep_res(calo_sweep_res, chi2_g, par_gs, pdf_dir, suffix):
     print('making calorimeter sweep plots')
 
     r.gStyle.SetStatH(0.15)
@@ -704,7 +760,7 @@ def print_calo_sweep_res(calo_sweep_res, chi2_g, par_gs, pdf_dir):
 
         cbo_freq = fit.GetParameter(9) / 2 / math.pi
         print_fit_plots(hist, fft, cbo_freq,
-                        f'{calo_dirname}/calo{calo_num}Tfit', pdf_dir)
+                        f'{calo_dirname}/calo{calo_num}{suffix}', pdf_dir)
 
     c = r.TCanvas()
     chi2_g.Draw('ap')
@@ -714,7 +770,7 @@ def print_calo_sweep_res(calo_sweep_res, chi2_g, par_gs, pdf_dir):
     ln.SetLineStyle(2)
     ln.Draw()
 
-    c.Print(f'{pdf_dir}/{calo_dirname}/chi2VsCalo.pdf')
+    c.Print(f'{pdf_dir}/{calo_dirname}/chi2VsCalo{suffix}.pdf')
 
     for par_num in par_gs:
         g = par_gs[par_num]
@@ -727,7 +783,7 @@ def print_calo_sweep_res(calo_sweep_res, chi2_g, par_gs, pdf_dir):
 
         g.GetXaxis().SetLimits(0, 25)
 
-        c.Print(f'{pdf_dir}/{calo_dirname}/{par_name}VsCalo.pdf')
+        c.Print(f'{pdf_dir}/{calo_dirname}/{par_name}VsCalo{suffix}.pdf')
 
 
 def print_energy_sweep_res(energy_sweep_res, chi2_g, par_gs, pdf_dir):
@@ -840,10 +896,17 @@ def run_analysis(config):
 
     blinder = Blinders(FitType.Omega_a, config['blinding_phrase'])
 
+    master_3d = get_histogram(config['hist_name'], config['file_name'])
+    master_3d.SetName('master_3d')
     uncorrected_3d = get_histogram(config['uncor_hist_name'],
                                    config['file_name'])
 
-    all_calo_2d = master_3d.Project3D('yx_all')
+    calo_range = config['calo_range']
+    uncorrected_3d.GetZaxis().SetRange(calo_range[0], calo_range[1])
+    master_3d.GetZaxis().SetRange(calo_range[0], calo_range[1])
+
+    all_calo_2d = master_3d.Project3D('yx')
+    all_calo_2d.SetName('all_calo_2d')
 
     r.gStyle.SetStatW(0.25)
     r.gStyle.SetStatH(0.4)
@@ -859,6 +922,7 @@ def run_analysis(config):
 
     # do T-method pileup multiplier scan
     uncorrected_2d = uncorrected_3d.Project3D('yx')
+    uncorrected_2d.SetName('uncor_2d')
 
     pu_scan_fit = clone_full_fit_tf1(full_fit, 'pu_scan_fit')
     pu_scan_fit.SetParLimits(6, 100, 400)
@@ -900,7 +964,7 @@ def run_analysis(config):
         master_3d, per_calo_fit, thresh, config)
     calo_chi2_g, calo_sweep_par_gs = make_calo_sweep_graphs(calo_sweep_res)
     print_calo_sweep_res(calo_sweep_res, calo_chi2_g,
-                         calo_sweep_par_gs, pdf_dir)
+                         calo_sweep_par_gs, pdf_dir, 'TFit')
 
     print('energy binned analysis...')
 
@@ -958,6 +1022,31 @@ def run_analysis(config):
     c1 = plot_pu_sweep_chi2(a_pu_chi2_g, 'A-Weighted')
     c1.Print(f'{pdf_dir}/aWeightPuSweepchi2.pdf')
 
+    print('A-Weighted calo scan')
+
+    per_calo_a_fit = clone_full_fit_tf1(a_weight_fit, 'per_calo_a_fit')
+
+    # free 2*omega_cbo params for per calo
+    for par_num in range(24, 27):
+        per_calo_a_fit.ReleaseParameter(par_num)
+
+    # limit the cbo lifetime params
+    per_calo_a_fit.SetParLimits(6, 50, 400)
+    per_calo_a_fit.SetParLimits(24, 30, 200)
+
+    # fix vw parameters for the single calo fit
+    for par_num in [10, 13]:
+        per_calo_a_fit.FixParameter(par_num,
+                                    per_calo_a_fit.GetParameter(par_num))
+
+    # T-method fits per calo
+    calo_sweep_a_res = A_weighted_calo_sweep(
+        master_3d, per_calo_a_fit, a_vs_e_spline, config)
+    calo_a_chi2_g, calo_sweep_a_par_gs = make_calo_sweep_graphs(
+        calo_sweep_a_res)
+    print_calo_sweep_res(calo_sweep_a_res, calo_a_chi2_g,
+                         calo_sweep_a_par_gs, pdf_dir, 'AWeight')
+
     #
     # make an output file with resulting root objects
     #
@@ -990,7 +1079,7 @@ def run_analysis(config):
     e_sweep_chi2_g.Write()
 
     # save calo sweep plots
-    calo_sweep_dir = out_f.mkdir('caloSweep')
+    calo_sweep_dir = out_f.mkdir('TMethodCaloSweep')
     calo_sweep_dir.cd()
     for par_num in calo_sweep_par_gs:
         graph = calo_sweep_par_gs[par_num]
@@ -1000,6 +1089,17 @@ def run_analysis(config):
         result[0].Write()
         result[1].Write()
     calo_chi2_g.Write()
+
+    calo_sweep_a_dir = out_f.mkdir('AWeightedCaloSweep')
+    calo_sweep_a_dir.cd()
+    for par_num in calo_sweep_a_par_gs:
+        graph = calo_sweep_a_par_gs[par_num]
+        graph.SetName(f'par{par_num}VsCalo')
+        graph.Write()
+    for result in calo_sweep_a_res:
+        result[0].Write()
+        result[1].Write()
+    calo_a_chi2_g.Write()
 
     # save pileup multiplier scan results
     pu_scan_dir = out_f.mkdir('pileupScans')

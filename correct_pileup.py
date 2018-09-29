@@ -50,16 +50,15 @@ def main():
 
     file = r.TFile(infile_name)
     lost_muon_hist = file.Get('clustersAndCoincidences/triples')
+    ctag_hist = file.Get('clustersAndCoincidences/ctag')
 
     outfile_name = infile_name.rstrip('.root') + '_pileup_corrected.root'
     outf = r.TFile(outfile_name, 'recreate')
 
-    for hist in [uncorrected, corrected, lost_muon_hist]:
+    for hist in [uncorrected, corrected, lost_muon_hist, ctag_hist]:
         hist.SetDirectory(r.gDirectory)
+        hist.Write()
 
-    uncorrected.Write()
-    corrected.Write()
-    lost_muon_hist.Write()
     outf.Write()
 
 
