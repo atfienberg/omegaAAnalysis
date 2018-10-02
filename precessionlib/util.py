@@ -6,6 +6,9 @@
 import ROOT as r
 import math
 
+# approximate omega_a period
+approx_oma_period = 4.37
+
 
 def rebinned_last_axis(array, rebin_factor):
     ''' rebin ND arrays along the last axis '''
@@ -212,6 +215,10 @@ class ParamTimeScanResult():
         self._high = r.TGraph()
         self._high.SetLineStyle(2)
 
+    @property
+    def par_num(self):
+        return self._par_num
+
     def add_point(self, time, func):
         point_num = self._g.GetN()
         self._g.SetPoint(point_num,
@@ -266,3 +273,69 @@ def start_time_scan(hist, func, start, step, n_pts,
             result.add_point(start, func)
 
     return results
+
+
+def make_shifted_wiggle_func(fit):
+    ''' used in the wrapped wiggle plot'''
+    def shifted_wiggle(x, p):
+        return fit.Eval(x[0] - p[0])
+    return shifted_wiggle
+
+
+def make_wrapped_wiggle_plot(hist, fit, title,
+                             fit_start, fit_end,
+                             periods_per_wrap=20,
+                             earliest_time=3):
+    ''' make the wrap-around wiggle plot '''
+
+    bins_per_wrap = int(periods_per_wrap *
+                        approx_oma_period / hist.GetBinWidth(1))
+
+    r.gStyle.SetOptStat(0)
+    r.gStyle.SetOptFit(0)
+
+    # build the hist segments and function segments
+    hists = []
+    funcs = []
+    for start_bin in range(1, hist.GetNbinsX() - bins_per_wrap, bins_per_wrap):
+        start_t = hist.GetBinLowEdge(start_bin)
+
+        wrap_hist = r.TH1D(f'{fit.GetName()}wrap_start{start_bin}',
+                           'wrapped_hist', bins_per_wrap,
+                           hist.GetBinLowEdge(1),
+                           hist.GetBinLowEdge(bins_per_wrap + 1))
+        for i_bin in range(start_bin, start_bin + bins_per_wrap):
+            # cut out bins before earliest time
+            if hist.GetBinCenter(i_bin) > earliest_time:
+                wrap_hist.SetBinContent(i_bin - start_bin + 1,
+                                        hist.GetBinContent(i_bin))
+                wrap_hist.SetBinError(i_bin - start_bin + 1,
+                                      hist.GetBinError(i_bin))
+
+        wrap_hist.SetMarkerSize(0.3)
+
+        wrap_func_seg = r.TF1(
+            f'{hist.GetName()}shifted{start_bin}',
+            make_shifted_wiggle_func(fit),
+            fit_start - start_t, fit_end - start_t, 1)
+        wrap_func_seg.SetLineColor(r.kGreen + 2)
+        wrap_func_seg.SetParameter(0, -start_t)
+        wrap_func_seg.SetNpx(10000)
+
+        hists.append(wrap_hist)
+        funcs.append(wrap_func_seg)
+
+    c = r.TCanvas()
+    c.SetLogy(1)
+
+    hists[0].Draw()
+    funcs[0].Draw('same')
+    t_per_wrap = hist.GetBinWidth(1) * bins_per_wrap
+    hists[0].SetTitle(f'{title};time modulo {t_per_wrap:.0f}#mus;')
+    for hist, func in zip(hists[1:], funcs[1:]):
+        hist.Draw('same')
+        func.Draw('same')
+
+    hists[0].GetYaxis().SetRangeUser(10, 1.5 * hists[0].GetMaximum())
+
+    return c, (hists, funcs)

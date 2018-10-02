@@ -330,7 +330,7 @@ def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config):
     return results
 
 
-def energy_sweep(master_3d, model_fit, min_e, max_e, n_slices, config):
+def energy_sweep(master_3d, model_fit, config):
     ''' sweep over energy bins, fitting each one
     returns a list of (hist, [e_low, e_high], model_fit, resids, fft))
     for each energy
@@ -343,6 +343,12 @@ def energy_sweep(master_3d, model_fit, min_e, max_e, n_slices, config):
     '''
 
     print('energy binned sweep...')
+
+    e_conf = config['E_binned_ana']
+    min_e = e_conf['min_E']
+    max_e = e_conf['max_E']
+    n_slices = e_conf['n_bins']
+
     results = []
 
     # convert energy range into bin index ranges
@@ -918,6 +924,29 @@ def run_analysis(config):
     T_hist, full_fit, result, thresh = T_method_analysis(
         all_calo_2d, blinder, config)
 
+    print('T-Method start time scan:')
+
+    start_time_fit = clone_full_fit_tf1(full_fit, 'start_time_fit')
+    start_time_conf = config['start_time_scan']
+    for par_num in start_time_conf['params_to_fix']:
+        start_time_fit.FixParameter(par_num,
+                                    start_time_fit.GetParameter(par_num))
+
+    t_scan_res = start_time_scan(T_hist, start_time_fit,
+                                 start=config['fit_start'],
+                                 end=config['extended_fit_end'],
+                                 step=start_time_conf['step'],
+                                 n_pts=start_time_conf['n_pts'],
+                                 fit_options=config['fit_options'] + 'E')
+
+    t_start_canvs = []
+    for i, res in enumerate(t_scan_res):
+        t_start_canvs.append(r.TCanvas())
+        res.Draw()
+        t_start_canvs[-1].Draw()
+        t_start_canvs[-1].SetName(f'TMethodPar{res.par_num}StartScan')
+        t_start_canvs[-1].Print(f'{pdf_dir}/TMethodStartScan{res.par_num}.pdf')
+
     print('T-Method pileup multiplier scan...')
 
     # do T-method pileup multiplier scan
@@ -975,7 +1004,7 @@ def run_analysis(config):
         e_binned_fit.FixParameter(par_num, e_binned_fit.GetParameter(par_num))
 
     # do the energy bin sweeps
-    e_sweep_res = energy_sweep(master_3d, e_binned_fit, 500, 2850, 32, config)
+    e_sweep_res = energy_sweep(master_3d, e_binned_fit, config)
     e_sweep_chi2_g, e_sweep_par_gs = make_E_sweep_graphs(e_sweep_res)
     print_energy_sweep_res(e_sweep_res, e_sweep_chi2_g,
                            e_sweep_par_gs, pdf_dir)
@@ -1007,6 +1036,28 @@ def run_analysis(config):
     print_fit_plots(a_weight_hist, fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
+
+    print('A-Weighted start time scan:')
+
+    a_start_time_fit = clone_full_fit_tf1(a_weight_fit, 'a_start_time_fit')
+    for par_num in start_time_conf['params_to_fix']:
+        a_start_time_fit.FixParameter(par_num,
+                                      a_start_time_fit.GetParameter(par_num))
+
+    a_scan_res = start_time_scan(a_weight_hist, a_start_time_fit,
+                                 start=config['fit_start'],
+                                 end=config['extended_fit_end'],
+                                 step=start_time_conf['step'],
+                                 n_pts=start_time_conf['n_pts'],
+                                 fit_options=config['fit_options'] + 'E')
+
+    a_start_canvs = []
+    for i, res in enumerate(a_scan_res):
+        a_start_canvs.append(r.TCanvas())
+        res.Draw()
+        a_start_canvs[-1].Draw()
+        a_start_canvs[-1].SetName(f'AWeightPar{res.par_num}StartScan')
+        a_start_canvs[-1].Print(f'{pdf_dir}/AWeightStartScan{res.par_num}.pdf')
 
     print('A-Weighted pileup multiplier scan...')
 
@@ -1119,6 +1170,18 @@ def run_analysis(config):
         graph = t_pu_par_gs[par_num]
         graph.SetName(f'aWeightedPar{par_num}VsPuScale')
         graph.Write()
+
+    # save start time scan results
+    start_scan_dir = out_f.mkdir('startTimeScans')
+    t_start_dir = start_scan_dir.mkdir('T-Method')
+    t_start_dir.cd()
+    for canv in t_start_canvs:
+        canv.Write()
+
+    a_start_dir = start_scan_dir.mkdir('A-Weighted')
+    a_start_dir.cd()
+    for canv in a_start_canvs:
+        canv.Write()
 
     out_f.Write()
 

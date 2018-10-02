@@ -13,6 +13,8 @@ import ROOT as r
 from precessionlib.calospectra import CaloSpectra
 from precessionlib.util import rebinned_last_axis
 
+pu_energy_min = 3500
+
 
 def build_root_hists(filename, histname, rebin_factor):
     '''
@@ -20,7 +22,7 @@ def build_root_hists(filename, histname, rebin_factor):
     returns uncorrected, corrected, pileup_normalizations
     pileup normalizations can be used to adjust fit weights in corrected hist
     '''
-    spec = CaloSpectra.from_root_file(filename, histname)
+    spec = CaloSpectra.from_root_file(filename, histname, pu_energy_min=3500)
 
     rebinned_axes = list(spec.axes)
     rebinned_axes[-1] = rebinned_axes[-1][::rebin_factor]
