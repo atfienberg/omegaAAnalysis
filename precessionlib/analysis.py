@@ -18,9 +18,6 @@ r.gStyle.SetOptFit(1111)
 calo_dirname = 'perCaloPlots'
 e_sweep_dirname = 'energyBinnedPlots'
 
-# approximate omega_a period
-approx_oma_period = 4.37
-
 
 def do_threshold_sweep(all_calo_2d, fit_function, fit_start, fit_end,
                        start_thresh=1800):
@@ -74,7 +71,7 @@ def fit_and_fft(hist, func, fit_name, fit_options,
         # adjusted some phase parameters, try fitting again
         hist.Fit(func, fit_options, '', fit_start, fit_end)
 
-    resids = build_residuals_hist(hist, func.GetName())
+    resids = build_residuals_hist(hist, func)
     resid_fft = fft_histogram(after_t(resids, fit_start), f'{fit_name}FFT')
     resid_fft.SetTitle(f'{hist.GetTitle()};f [MHz];fft mag')
 
@@ -417,9 +414,9 @@ def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
     # pu perturbation is uncorrected T hist minus corrected T hist
     pu_pert = uncorrected_T_hist.Clone()
     pu_pert.SetName('puPertTMeth')
-    # corrected_T_hist =
-    pu_pert.Add(corrected_2d.ProjectionX('correctedTMeth',
-                                         thresh_bin, -1), -1)
+    corrected_T_hist = corrected_2d.ProjectionX('correctedTMeth',
+                                                thresh_bin, -1)
+    pu_pert.Add(corrected_T_hist, -1)
 
     pu_scan_fit = clone_full_fit_tf1(model_fit,
                                      f'tFitScaled{scales[0]}')
@@ -436,6 +433,12 @@ def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
         fit_hist.Add(pu_pert, -1 * scale_factor)
 
         fit_hist.ResetStats()
+        # for now, use errors from the corrected T hist at all pts in scan
+        # I don't currently have a good way to scale the extra error factor
+        # along with the scale of the pu-correction
+        for i_bin in range(1, corrected_T_hist.GetNbinsX() + 1):
+            fit_hist.SetBinError(i_bin, corrected_T_hist.GetBinError(i_bin))
+
         fit_hist.Fit(fit, config['fit_options'] + '0', ' ',
                      config['fit_start'], config['extended_fit_end'])
 
@@ -606,6 +609,9 @@ def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
     pu_pert_2d = uncorrected_2d.Clone()
     pu_pert_2d.SetName('2d_pu_pert')
     pu_pert_2d.Add(corrected_2d, -1)
+    corrected_a_hist = build_a_weight_hist(
+        corrected_2d, a_vs_e_spline,
+        f'corrected_aweight', min_e=min_e, max_e=max_e)
 
     pu_scan_fit = clone_full_fit_tf1(model_fit,
                                      f'aWeightScaled{scales[0]}')
@@ -625,6 +631,12 @@ def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
                                        f'scaled_aweight_{scale_factor}',
                                        min_e=min_e,
                                        max_e=max_e)
+
+        # for now, use errors from the corrected A hist at all pts in scan
+        # I don't currently have a good way to scale the extra error factor
+        # along with the scale of the pu-correction
+        for i_bin in range(1, corrected_a_hist.GetNbinsX() + 1):
+            scaled_a.SetBinError(i_bin, corrected_a_hist.GetBinError(i_bin))
 
         scaled_a.Fit(fit, config['fit_options'] + '0', ' ',
                      config['fit_start'], config['extended_fit_end'])
@@ -747,9 +759,9 @@ def plot_loss_hists(lost_muon_rate,
     leg.SetFillColor(r.kWhite)
     leg.SetShadowColor(r.kWhite)
     leg.AddEntry(lost_muon_rate, 'L(t)', 'l')
-    leg.AddEntry(lost_muon_prob, 'L(t) #bullet exp(t / 64.4 #mu s)', 'l')
+    leg.AddEntry(lost_muon_prob, 'L(t) #bullet exp(t / #tau_{#mu})', 'l')
     leg.AddEntry(plot_cumulative, '#int_{0}^{t} L(t\')'
-                 ' #bullet exp(t\' / 64.4 #mu s) dt\'', 'l')
+                 ' #bullet exp(t\' / #tau_{#mu}) dt\'', 'l')
 
     leg.Draw()
 
@@ -924,29 +936,6 @@ def run_analysis(config):
     T_hist, full_fit, result, thresh = T_method_analysis(
         all_calo_2d, blinder, config)
 
-    print('T-Method start time scan:')
-
-    start_time_fit = clone_full_fit_tf1(full_fit, 'start_time_fit')
-    start_time_conf = config['start_time_scan']
-    for par_num in start_time_conf['params_to_fix']:
-        start_time_fit.FixParameter(par_num,
-                                    start_time_fit.GetParameter(par_num))
-
-    t_scan_res = start_time_scan(T_hist, start_time_fit,
-                                 start=config['fit_start'],
-                                 end=config['extended_fit_end'],
-                                 step=start_time_conf['step'],
-                                 n_pts=start_time_conf['n_pts'],
-                                 fit_options=config['fit_options'] + 'E')
-
-    t_start_canvs = []
-    for i, res in enumerate(t_scan_res):
-        t_start_canvs.append(r.TCanvas())
-        res.Draw()
-        t_start_canvs[-1].Draw()
-        t_start_canvs[-1].SetName(f'TMethodPar{res.par_num}StartScan')
-        t_start_canvs[-1].Print(f'{pdf_dir}/TMethodStartScan{res.par_num}.pdf')
-
     print('T-Method pileup multiplier scan...')
 
     # do T-method pileup multiplier scan
@@ -1037,28 +1026,6 @@ def run_analysis(config):
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
 
-    print('A-Weighted start time scan:')
-
-    a_start_time_fit = clone_full_fit_tf1(a_weight_fit, 'a_start_time_fit')
-    for par_num in start_time_conf['params_to_fix']:
-        a_start_time_fit.FixParameter(par_num,
-                                      a_start_time_fit.GetParameter(par_num))
-
-    a_scan_res = start_time_scan(a_weight_hist, a_start_time_fit,
-                                 start=config['fit_start'],
-                                 end=config['extended_fit_end'],
-                                 step=start_time_conf['step'],
-                                 n_pts=start_time_conf['n_pts'],
-                                 fit_options=config['fit_options'] + 'E')
-
-    a_start_canvs = []
-    for i, res in enumerate(a_scan_res):
-        a_start_canvs.append(r.TCanvas())
-        res.Draw()
-        a_start_canvs[-1].Draw()
-        a_start_canvs[-1].SetName(f'AWeightPar{res.par_num}StartScan')
-        a_start_canvs[-1].Print(f'{pdf_dir}/AWeightStartScan{res.par_num}.pdf')
-
     print('A-Weighted pileup multiplier scan...')
 
     a_pu_fit = clone_full_fit_tf1(a_weight_fit, 'a_pu_fit')
@@ -1090,13 +1057,63 @@ def run_analysis(config):
         per_calo_a_fit.FixParameter(par_num,
                                     per_calo_a_fit.GetParameter(par_num))
 
-    # T-method fits per calo
+    # A-Weighted fits per calo
     calo_sweep_a_res = A_weighted_calo_sweep(
         master_3d, per_calo_a_fit, a_vs_e_spline, config)
     calo_a_chi2_g, calo_sweep_a_par_gs = make_calo_sweep_graphs(
         calo_sweep_a_res)
     print_calo_sweep_res(calo_sweep_a_res, calo_a_chi2_g,
                          calo_sweep_a_par_gs, pdf_dir, 'AWeight')
+
+    if config['do_start_time_scans']:
+
+        print('T-Method start time scan:')
+
+        start_time_fit = clone_full_fit_tf1(full_fit, 'start_time_fit')
+        start_time_conf = config['start_time_scan']
+        for par_num in start_time_conf['params_to_fix']:
+            start_time_fit.FixParameter(par_num,
+                                        start_time_fit.GetParameter(par_num))
+
+        t_scan_res = start_time_scan(T_hist, start_time_fit,
+                                     start=config['fit_start'],
+                                     end=config['extended_fit_end'],
+                                     step=start_time_conf['step'],
+                                     n_pts=start_time_conf['n_pts'],
+                                     fit_options=config['fit_options'] + 'E')
+
+        t_start_canvs = []
+        for i, res in enumerate(t_scan_res):
+            name = f'TMethodPar{res.par_num}StartScan'
+            t_start_canvs.append(r.TCanvas(name, name))
+            res.Draw()
+            t_start_canvs[-1].SetName(f'TMethodPar{res.par_num}StartScan')
+            t_start_canvs[-1].Print(
+                f'{pdf_dir}/TMethodStartScan{res.par_num}.pdf')
+
+        print('A-Weighted start time scan:')
+
+        a_start_time_fit = clone_full_fit_tf1(a_weight_fit, 'a_start_time_fit')
+        for par_num in start_time_conf['params_to_fix']:
+            a_start_time_fit.FixParameter(par_num,
+                                          a_start_time_fit.GetParameter(
+                                              par_num))
+
+        a_scan_res = start_time_scan(a_weight_hist, a_start_time_fit,
+                                     start=config['fit_start'],
+                                     end=config['extended_fit_end'],
+                                     step=start_time_conf['step'],
+                                     n_pts=start_time_conf['n_pts'],
+                                     fit_options=config['fit_options'] + 'E')
+
+        a_start_canvs = []
+        for i, res in enumerate(a_scan_res):
+            name = f'AWeightPar{res.par_num}StartScan'
+            a_start_canvs.append(r.TCanvas(name, name))
+            res.Draw()
+            a_start_canvs[-1].Draw()
+            a_start_canvs[-1].Print(
+                f'{pdf_dir}/AWeightStartScan{res.par_num}.pdf')
 
     #
     # make an output file with resulting root objects
@@ -1171,17 +1188,18 @@ def run_analysis(config):
         graph.SetName(f'aWeightedPar{par_num}VsPuScale')
         graph.Write()
 
-    # save start time scan results
-    start_scan_dir = out_f.mkdir('startTimeScans')
-    t_start_dir = start_scan_dir.mkdir('T-Method')
-    t_start_dir.cd()
-    for canv in t_start_canvs:
-        canv.Write()
+    if config['do_start_time_scans']:
+        # save start time scan results
+        start_scan_dir = out_f.mkdir('startTimeScans')
+        t_start_dir = start_scan_dir.mkdir('T-Method')
+        t_start_dir.cd()
+        for canv in t_start_canvs:
+            canv.Write()
 
-    a_start_dir = start_scan_dir.mkdir('A-Weighted')
-    a_start_dir.cd()
-    for canv in a_start_canvs:
-        canv.Write()
+        a_start_dir = start_scan_dir.mkdir('A-Weighted')
+        a_start_dir.cd()
+        for canv in a_start_canvs:
+            canv.Write()
 
     out_f.Write()
 

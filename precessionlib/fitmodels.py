@@ -246,7 +246,7 @@ def clone_full_fit_tf1(full_fit, name):
     return new_fit
 
 
-def prepare_loss_hist(config, T_meth_hist, tau=64.4):
+def prepare_loss_hist(config, T_meth_hist, tau=64.44):
     '''prepare the muon loss histogram needed for fitting
     also make some plots'''
     lost_muon_rate_2d = get_histogram(

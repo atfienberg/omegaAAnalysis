@@ -133,12 +133,17 @@ def after_t(histogram, t_start):
     return new_hist
 
 
-def build_residuals_hist(histogram, fit_name, use_errors=False):
-    resid_hist = r.TH1D(histogram.GetName() + f'{fit_name}_residuals',
+def build_residuals_hist(histogram, func, use_errors=False, name=None):
+    fit_name = func.GetName()
+
+    if name is None:
+        name = histogram.GetName() + f'{fit_name}_residuals'
+
+    resid_hist = r.TH1D(name,
                         histogram.GetTitle(),
                         histogram.GetNbinsX(), histogram.GetBinLowEdge(1),
                         histogram.GetBinLowEdge(histogram.GetNbinsX()) + 1)
-    func = histogram.GetFunction(fit_name)
+
     for i_bin in range(1, resid_hist.GetNbinsX() + 1):
         content = histogram.GetBinContent(i_bin)
         func_val = func.Eval(histogram.GetBinCenter(i_bin))
@@ -291,9 +296,6 @@ def make_wrapped_wiggle_plot(hist, fit, title,
     bins_per_wrap = int(periods_per_wrap *
                         approx_oma_period / hist.GetBinWidth(1))
 
-    r.gStyle.SetOptStat(0)
-    r.gStyle.SetOptFit(0)
-
     # build the hist segments and function segments
     hists = []
     funcs = []
@@ -336,6 +338,21 @@ def make_wrapped_wiggle_plot(hist, fit, title,
         hist.Draw('same')
         func.Draw('same')
 
-    hists[0].GetYaxis().SetRangeUser(10, 1.5 * hists[0].GetMaximum())
+    y_min, y_max = 10, 1.5 * hists[0].GetMaximum()
+    hists[0].GetYaxis().SetRangeUser(y_min, y_max)
 
-    return c, (hists, funcs)
+    # try to put this text box in the upper right without
+    # drawing it on top of the data
+    txt = r.TPaveText(0.5 * t_per_wrap,
+                      y_max * 0.8,
+                      0.9 * t_per_wrap,
+                      2 * hists[0].Interpolate(t_per_wrap * 0.5))
+    txt.SetLineColor(r.kWhite)
+    txt.SetShadowColor(r.kWhite)
+    txt.SetFillColor(r.kWhite)
+
+    txt.AddText(f'#chi^{{2}}/ndf: {fit.GetChisquare():.0f}/{fit.GetNDF():.0f}')
+    txt.AddText(f'precision: {fit.GetParError(4):.2f} ppm')
+    txt.Draw()
+
+    return c, (hists, funcs, txt)
