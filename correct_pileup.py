@@ -14,8 +14,6 @@ import numpy as np
 from precessionlib.calospectra import CaloSpectra
 from precessionlib.util import rebinned_last_axis
 
-pu_energy_min = 3500
-
 do_errors = True
 
 
@@ -25,7 +23,7 @@ def build_root_hists(filename, histname, rebin_factor, do_errors):
     returns uncorrected, corrected, pileup_normalizations
     pileup normalizations can be used to adjust fit weights in corrected hist
     '''
-    spec = CaloSpectra.from_root_file(filename, histname, pu_energy_min=3500)
+    spec = CaloSpectra.from_root_file(filename, histname, do_triple=True)
 
     spec.set_hist_errors
 
@@ -36,6 +34,7 @@ def build_root_hists(filename, histname, rebin_factor, do_errors):
 
     uncorrected_hist = spec.build_root_hist(
         rebinned_spec, rebinned_axes, 'uncorrected')
+    uncorrected_hist.SetDirectory(0)
 
     rebinned_corrected = rebinned_spec - \
         rebinned_last_axis(spec.pu_spectrum, rebin_factor)
@@ -48,6 +47,8 @@ def build_root_hists(filename, histname, rebin_factor, do_errors):
             spec.cor_variances, rebin_factor))
         spec.set_hist_errors(errors, corrected_hist)
 
+    corrected_hist.SetDirectory(0)
+
     return uncorrected_hist, corrected_hist
 
 
@@ -57,24 +58,39 @@ def main():
         return 0
 
     infile_name = sys.argv[1]
-    uncorrected, corrected = build_root_hists(
-        infile_name, 'clustersAndCoincidences/clusters', 6, do_errors)
-
     file = r.TFile(infile_name)
-    lost_muon_hist = file.Get('clustersAndCoincidences/triples')
-    ctag_hist = file.Get('clustersAndCoincidences/ctag')
+
+    dirs = ['clustersAndCoincidences',
+            'clustersAndCoincidencesNoGainCorrection']
+
+    hists = []
+
+    for dir_name in dirs:
+        uncorrected, corrected = build_root_hists(
+            infile_name, f'{dir_name}/clusters', 6, do_errors)
+
+        trip_hist = file.Get(f'{dir_name}/triples')
+        quad_hist = file.Get(f'{dir_name}/quadruples')
+        ctag_hist = file.Get(f'{dir_name}/ctag')
+
+        hists.append([uncorrected, corrected, trip_hist, quad_hist, ctag_hist])
 
     if do_errors:
-        outfile_name = infile_name.rstrip(
-            '.root') + '_pileup_corrected_errors.root'
+        outfile_name = infile_name.replace(
+            '.root', '') + '_pileup_corrected_errors.root'
     else:
-        outfile_name = infile_name.rstrip('.root') + '_pileup_corrected.root'
+        outfile_name = infile_name.replace(
+            '.root', '') + '_pileup_corrected.root'
 
     outf = r.TFile(outfile_name, 'recreate')
 
-    for hist in [uncorrected, corrected, lost_muon_hist, ctag_hist]:
-        hist.SetDirectory(r.gDirectory)
-        hist.Write()
+    for dir_name, hist_list in zip(dirs, hists):
+        out_dir = outf.mkdir(dir_name)
+        out_dir.cd()
+
+        for hist in hist_list:
+            hist.SetDirectory(r.gDirectory)
+            # hist.Write()
 
     outf.Write()
 

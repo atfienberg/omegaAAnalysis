@@ -21,7 +21,7 @@ e_sweep_dirname = 'energyBinnedPlots'
 
 def do_threshold_sweep(all_calo_2d, fit_function, fit_start, fit_end,
                        start_thresh=1800):
-    ''' finds the optimal T-method threshold
+    ''' finds the optimal T-Method threshold
         returns:
         (best_threshold, [(thresh1, r_precision1, thresh2, preceision2),...])
 
@@ -87,7 +87,7 @@ def fit_and_fft(hist, func, fit_name, fit_options,
 def fit_slice(master_3d, name, model_fit,
               fit_options, fit_range, energy_bins, calo_bins,
               adjust_N=False):
-    ''' do a projected T-method fit
+    ''' do a projected T-Method fit
         starting fit_guesses are based on model_fit
         projects in region defined by energy_bins and calo_bins
         returns
@@ -136,8 +136,8 @@ def fit_slice(master_3d, name, model_fit,
 
 
 def T_method_analysis(all_calo_2d, blinder, config):
-    ''' do a full calo T-method analysis
-    returns T-method hist, fit function, TFitResult, threshold_bin
+    ''' do a full calo T-Method analysis
+    returns T-Method hist, fit function, TFitResult, threshold_bin
     '''
 
     # where to put the plots
@@ -173,7 +173,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
         f'T-Method, all calos, {best_thresh/1000:.2f} GeV threshold; ' +
         f'time [#mu s]; N / {bin_width:.3f} #mu s')
 
-    print('five parameter fit to T method histogram...')
+    print('five parameter fit to T Method histogram...')
 
     resids, fft, cbo_freq = fit_and_fft(
         best_T_hist, five_param_tf1, 'fiveParamAllCalos',
@@ -210,7 +210,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
 
     print('\npreparing muon loss histograms...')
     muon_hists = prepare_loss_hist(config, best_T_hist)
-    c, _ = plot_loss_hists(*muon_hists)
+    c, _ = plot_loss_hists(*muon_hists[1:])
     c.Print(f'{pdf_dir}/lostMuonPlot.pdf')
 
     print('\nfitting with muon loss term included...')
@@ -245,9 +245,9 @@ def T_method_analysis(all_calo_2d, blinder, config):
             print(f'R-{full_fit_tf1.GetParName(i)} correlation: ' +
                   f'{corr:.2f}')
 
-    print('\nfinished basic T-method analysis\n')
+    print('\nfinished basic T-Method analysis\n')
 
-    return best_T_hist, full_fit_tf1, fr, optimal_thresh_bin
+    return best_T_hist, full_fit_tf1, fr, optimal_thresh_bin, muon_hists
 
 
 def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
@@ -257,7 +257,7 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
     after that, it uses the results from the previous calo
     '''
 
-    print('T method calo sweep...')
+    print('T Method calo sweep...')
     results = []
     for i in range(1, 25):
         model_fit = clone_full_fit_tf1(model_fit, f'Calo{i}TFit')
@@ -276,8 +276,8 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
                                       calo_bins=(i, i),
                                       adjust_N=adjust_N)
 
-        hist.SetTitle(f'calo {i} T-method')
-        fft.SetTitle(f'calo {i} T-method')
+        hist.SetTitle(f'calo {i} T-Method')
+        fft.SetTitle(f'calo {i} T-Method')
 
         results.append((hist, model_fit, resids, fft))
 
@@ -400,7 +400,7 @@ def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
 
     corrected_2d: pileup corrected 2d histogram
     uncorrected_2d: pileup uncorrected 2d histogram
-    thresh_bin: T-method threshold energy bin
+    thresh_bin: T-Method threshold energy bin
     model_fit: fit function to use, should be a "full fit"
     scales: a list of scale factors to use
     config: analysis config dictionary
@@ -507,6 +507,39 @@ def make_E_sweep_graphs(energy_sweep_res):
         update_par_graphs(energy, fit, par_gs)
 
     return chi2_g, par_gs
+
+
+def make_loss_correction_hists(cumu_loss, K_loss, config):
+    ''' make scaled loss correction histograms
+    both starting from t = 0 and starting from fit_start
+    returns (from_zero, from_t_start)'''
+    from_zero = cumu_loss.Clone()
+    from_zero.Scale(100 * K_loss)
+    from_zero.SetName('lossCorrectionFromZero')
+    from_zero.SetTitle('loss correction from t = 0;time [#mus];' +
+                       ' fractional loss correction [%]')
+
+    t_start = config['fit_start']
+    from_t_start = from_zero.Clone()
+    from_t_start.SetName(f'lossCorrectionFrom{t_start:.1f}')
+    from_t_start.SetTitle(f'loss correction from {t_start:.1f} #mus ;' +
+                          'time [#mus]; fractional loss correction [%]')
+
+    start_frac = from_zero.GetBinContent(from_zero.FindBin(t_start))
+
+    for i_bin in range(1, from_t_start.GetNbinsX() + 1):
+        content = from_t_start.GetBinContent(i_bin)
+
+        if from_t_start.GetBinCenter(i_bin) < t_start:
+            from_t_start.SetBinContent(i_bin, 0)
+        else:
+            new_content = (content - start_frac) / (1 - start_frac / 100.0)
+            from_t_start.SetBinContent(i_bin, new_content)
+
+    t_max = from_t_start.GetBinLowEdge(from_t_start.GetNbinsX() + 1)
+    from_t_start.GetXaxis().SetRangeUser(t_start, t_max)
+
+    return from_zero, from_t_start
 
 
 #
@@ -933,12 +966,16 @@ def run_analysis(config):
     # Start with a T-Method analysis
     #
 
-    T_hist, full_fit, result, thresh = T_method_analysis(
+    T_hist, full_fit, result, thresh, muon_hists = T_method_analysis(
         all_calo_2d, blinder, config)
+
+    # build fractional loss hists
+    frac_losses = make_loss_correction_hists(muon_hists[0],
+                                             full_fit.GetParameter(14), config)
 
     print('T-Method pileup multiplier scan...')
 
-    # do T-method pileup multiplier scan
+    # do T-Method pileup multiplier scan
     uncorrected_2d = uncorrected_3d.Project3D('yx')
     uncorrected_2d.SetName('uncor_2d')
 
@@ -977,7 +1014,7 @@ def run_analysis(config):
         per_calo_fit.FixParameter(par_num,
                                   per_calo_fit.GetParameter(par_num))
 
-    # T-method fits per calo
+    # T-Method fits per calo
     calo_sweep_res = T_method_calo_sweep(
         master_3d, per_calo_fit, thresh, config)
     calo_chi2_g, calo_sweep_par_gs = make_calo_sweep_graphs(calo_sweep_res)
@@ -1010,9 +1047,9 @@ def run_analysis(config):
 
     a_weight_fit = clone_full_fit_tf1(full_fit, 'aWeightFit')
 
-    a_weight_fit.SetParLimits(10, 20, 40)
+    a_weight_fit.SetParLimits(10, 10, 40)
     # fix vw, a-weight fit seems to have issues with it
-    a_weight_fit.FixParameter(13, a_weight_fit.GetParameter(13))
+    # a_weight_fit.FixParameter(13, a_weight_fit.GetParameter(13))
 
     a_weight_fit.SetParameter(0,
                               a_weight_hist.GetBinContent(
@@ -1075,7 +1112,9 @@ def run_analysis(config):
             start_time_fit.FixParameter(par_num,
                                         start_time_fit.GetParameter(par_num))
 
-        t_scan_res = start_time_scan(T_hist, start_time_fit,
+        t_scan_hist = T_hist.Clone()
+        t_scan_hist.SetName('t_scan_hist')
+        t_scan_res = start_time_scan(t_scan_hist, start_time_fit,
                                      start=config['fit_start'],
                                      end=config['extended_fit_end'],
                                      step=start_time_conf['step'],
@@ -1099,7 +1138,9 @@ def run_analysis(config):
                                           a_start_time_fit.GetParameter(
                                               par_num))
 
-        a_scan_res = start_time_scan(a_weight_hist, a_start_time_fit,
+        a_scan_hist = a_weight_hist.Clone()
+        a_scan_hist.SetName('a_scan_hist')
+        a_scan_res = start_time_scan(a_scan_hist, a_start_time_fit,
                                      start=config['fit_start'],
                                      end=config['extended_fit_end'],
                                      step=start_time_conf['step'],
@@ -1124,7 +1165,7 @@ def run_analysis(config):
         out_f_name = out_f_name + '.root'
     out_f = r.TFile(f'{out_dir}/{out_f_name}', 'recreate')
 
-    # save A weighted and T method plots
+    # save A weighted and T Method plots
     T_hist.Write()
     full_fit.Write()
     a_weight_hist.Write()
@@ -1133,6 +1174,14 @@ def run_analysis(config):
     # save A vs E model
     signed_a_vs_e.Write()
     a_vs_e_spline.Write()
+
+    # muon loss stuff
+    loss_dir = out_f.mkdir('muonLosses')
+    loss_dir.cd()
+    for hist in muon_hists:
+        hist.Write()
+    for hist in frac_losses:
+        hist.Write()
 
     # save energy binned plots
     e_sweep_dir = out_f.mkdir('energySweep')

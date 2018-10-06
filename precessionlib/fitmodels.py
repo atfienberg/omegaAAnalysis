@@ -286,5 +286,5 @@ def prepare_loss_hist(config, T_meth_hist, tau=64.44):
     # initializeLossHist is defined in fitFunctions.C
     r.initializeLossHist(lost_muon_cumulative.GetName())
 
-    # return histograms scaled for plotting
-    return lost_muon_rate, lost_muon_prob
+    # return histograms
+    return lost_muon_cumulative, lost_muon_rate, lost_muon_prob

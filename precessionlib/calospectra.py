@@ -31,9 +31,9 @@ class CaloSpectra:
 
     def __init__(self,
                  do_triple=False,
-                 pu_energy_min=4000, pu_energy_max=5500,
+                 pu_energy_min=4000, pu_energy_max=6000,
                  pu_time_min=30):
-        self.do_triple = do_triple
+        self._do_triple = do_triple
         self._pu_emin = pu_energy_min
         self._pu_emax = pu_energy_max
         self._pu_tmin = pu_time_min
@@ -41,7 +41,7 @@ class CaloSpectra:
     @staticmethod
     def from_root_file(rootfilename, histname='master3D',
                        do_triple=False,
-                       pu_energy_min=4000, pu_energy_max=5500,
+                       pu_energy_min=4000, pu_energy_max=6000,
                        pu_time_min=30):
         ''' load 3d histogram from rootfile
         store numpy version of 3d hist + x, y, z axes'''
@@ -60,7 +60,7 @@ class CaloSpectra:
     @staticmethod
     def from_np_file(numpyfilename,
                      do_triple=False,
-                     pu_energy_min=4000, pu_energy_max=5500,
+                     pu_energy_min=4000, pu_energy_max=6000,
                      pu_time_min=30):
         out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max, pu_time_min)
 
@@ -188,7 +188,7 @@ class CaloSpectra:
         '''
 
         if do_triple is None:
-            do_triple = self.do_triple
+            do_triple = self._do_triple
         if pu_energy_min is None:
             pu_energy_min = self._pu_emin
         if pu_energy_max is None:
@@ -471,7 +471,7 @@ class CaloSpectra:
         self._pu_coeffs = [[] for i in range(n_calos)]
         self._pu_covs = [[] for i in range(n_calos)]
 
-        n_iters = 1 if self.do_triple is False else 2
+        n_iters = 1 if self._do_triple is False else 2
 
         for calo_num in range(1, n_calos + 1):
             pu_pert = 0
