@@ -25,8 +25,6 @@ def build_root_hists(filename, histname, rebin_factor, do_errors):
     '''
     spec = CaloSpectra.from_root_file(filename, histname, do_triple=True)
 
-    spec.set_hist_errors
-
     rebinned_axes = list(spec.axes)
     rebinned_axes[-1] = rebinned_axes[-1][::rebin_factor]
 
@@ -90,7 +88,6 @@ def main():
 
         for hist in hist_list:
             hist.SetDirectory(r.gDirectory)
-            # hist.Write()
 
     outf.Write()
 

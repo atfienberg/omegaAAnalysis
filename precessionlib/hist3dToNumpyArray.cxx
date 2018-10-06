@@ -30,7 +30,7 @@ int checkHist(std::size_t size, const TH3* hist) {
 }
 
 int hist3dToNumpyArray(double* data, std::size_t size, const char* histName) {
-  const TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
+  const TH3* hist = (TH3*)gROOT->FindObject(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;
@@ -49,7 +49,7 @@ int hist3dToNumpyArray(double* data, std::size_t size, const char* histName) {
 
 int numpyArrayToHist3d(const double* data, std::size_t size,
                        const char* histName) {
-  TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
+  TH3* hist = (TH3*)gROOT->FindObject(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;
@@ -68,7 +68,7 @@ int numpyArrayToHist3d(const double* data, std::size_t size,
 
 int fillHist3dErrors(const double* data, std::size_t size,
                      const char* histName) {
-  TH3* hist = (TH3*)gROOT->FindObjectAny(histName);
+  TH3* hist = (TH3*)gROOT->FindObject(histName);
   int retcode = checkHist(size, hist);
   if (retcode != 0) {
     return retcode;

@@ -49,11 +49,18 @@ class CaloSpectra:
 
         file = r.TFile(rootfilename)
         hist = file.Get(histname)
-        hist.SetDirectory(r.gROOT)
+
+        cwd = r.gDirectory
+        last_slash = histname.rfind('/')
+        if last_slash != -1:
+            histdir = file.Get(histname[:last_slash])
+            histdir.cd()
 
         out._axes = [CaloSpectra.build_axis(hist, i) for i in range(3)]
 
         out._array = CaloSpectra.build_hist_array(hist)
+
+        cwd.cd()
 
         return out
 
