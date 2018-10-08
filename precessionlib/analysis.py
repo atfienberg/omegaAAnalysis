@@ -341,24 +341,12 @@ def energy_sweep(master_3d, model_fit, config):
 
     print('energy binned sweep...')
 
-    e_conf = config['E_binned_ana']
-    min_e = e_conf['min_E']
-    max_e = e_conf['max_E']
-    n_slices = e_conf['n_bins']
+    bin_ranges = calculate_E_bin_ranges(master_3d, config)
 
     results = []
 
-    # convert energy range into bin index ranges
-    energy_axis = master_3d.GetYaxis()
-
-    low_bin = energy_axis.FindBin(min_e)
-    high_bin = energy_axis.FindBin(max_e) + 1
-
-    bins_per_slice = math.ceil((high_bin - low_bin) / n_slices)
-    bin_ranges = [(start, start + bins_per_slice - 1)
-                  for start in range(low_bin, high_bin, bins_per_slice)]
-
     for i, (low_bin, high_bin) in enumerate(bin_ranges):
+        energy_axis = master_3d.GetYaxis()
         low_e = energy_axis.GetBinLowEdge(low_bin)
         high_e = energy_axis.GetBinLowEdge(high_bin + 1)
         avg_e = 0.5 * (low_e + high_e)
@@ -394,8 +382,35 @@ def energy_sweep(master_3d, model_fit, config):
     return results
 
 
+def calculate_E_bin_ranges(master_3d, config):
+    ''' calculates energy bin ranges for each energy binned hist in the
+    energy binned analysis defined by config, the configuration dictionary
+    returns a list of tuples, each containing the
+    low bin and high bin for an energy binned histogram,
+    [(low1, high1), (low2, high2), ..., (lown, highn)]
+    '''
+
+    e_conf = config['E_binned_ana']
+    min_e = e_conf['min_E']
+    max_e = e_conf['max_E']
+    n_slices = e_conf['n_bins']
+
+    # convert energy range into bin index ranges
+    energy_axis = master_3d.GetYaxis()
+
+    low_bin = energy_axis.FindBin(min_e)
+    high_bin = energy_axis.FindBin(max_e) + 1
+
+    bins_per_slice = math.ceil((high_bin - low_bin) / n_slices)
+    bin_ranges = [(start, start + bins_per_slice - 1)
+                  for start in range(low_bin, high_bin, bins_per_slice)]
+
+    return bin_ranges
+
+
 def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
-                        thresh_bin, model_fit, scales, config):
+                        thresh_bin, model_fit, scales, config,
+                        max_thresh_bin=-1):
     ''' vary the pileup multiplier and fit
 
     corrected_2d: pileup corrected 2d histogram
@@ -409,13 +424,13 @@ def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
     '''
 
     uncorrected_T_hist = uncorrected_2d.ProjectionX(
-        'uncorrectedT', thresh_bin, -1)
+        'uncorrectedT', thresh_bin, max_thresh_bin)
 
     # pu perturbation is uncorrected T hist minus corrected T hist
     pu_pert = uncorrected_T_hist.Clone()
     pu_pert.SetName('puPertTMeth')
     corrected_T_hist = corrected_2d.ProjectionX('correctedTMeth',
-                                                thresh_bin, -1)
+                                                thresh_bin, max_thresh_bin)
     pu_pert.Add(corrected_T_hist, -1)
 
     pu_scan_fit = clone_full_fit_tf1(model_fit,
