@@ -253,7 +253,8 @@ class ParamTimeScanResult():
 
 def start_time_scan(hist, func, start, step, n_pts,
                     end=None, fit_options=''):
-    '''returns one ParamTimeScanResult per parameter'''
+    '''returns one (chi2_g, ParamTimeScanResults),
+    time scan results is a list, one result per non-fixed param'''
     if end is None:
         end = hist.GetBinLowEdge(hist.GetNbinsX() + 1)
 
@@ -267,6 +268,9 @@ def start_time_scan(hist, func, start, step, n_pts,
 
     start_bin = hist.FindBin(start)
 
+    chi2_g = r.TGraphErrors()
+    chi2_g.SetTitle(';start time [#mus]; #chi^{2}/ndf')
+
     for i_bin in range(start_bin,
                        start_bin + step_in_bins * n_pts,
                        step_in_bins):
@@ -277,7 +281,11 @@ def start_time_scan(hist, func, start, step, n_pts,
         for result in results:
             result.add_point(start, func)
 
-    return results
+        pt_num = chi2_g.GetN()
+        chi2_g.SetPoint(pt_num, start, func.GetChisquare() / func.GetNDF())
+        chi2_g.SetPointError(pt_num, 0, math.sqrt(2 / func.GetNDF()))
+
+    return chi2_g, results
 
 
 def make_shifted_wiggle_func(fit):

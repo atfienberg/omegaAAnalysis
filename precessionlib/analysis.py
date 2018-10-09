@@ -693,6 +693,23 @@ def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
 
     return fits
 
+
+def get_residuals_distribution(residuals_hist, name, config,
+                               n_bins=100, range_min=-5, range_max=5):
+    ''' histogram the residuals within the fit window '''
+    resid_dist = r.TH1D(f'{residuals_hist.GetName()}_distro',
+                        f'{name}; residuals; n bins', 100, -5, 5)
+
+    for i_bin in range(1, residuals_hist.GetNbinsX() + 1):
+        bin_t = residuals_hist.GetBinCenter(i_bin)
+        if config['fit_start'] < bin_t < config['extended_fit_end']:
+            resid_dist.Fill(residuals_hist.GetBinContent(i_bin))
+
+    resid_dist.Fit('gaus', 'q', '', -1.5, 1.5)
+
+    return resid_dist
+
+
 #
 # plotting and printing functions
 #
@@ -983,6 +1000,9 @@ def run_analysis(config):
 
     T_hist, full_fit, result, thresh, muon_hists = T_method_analysis(
         all_calo_2d, blinder, config)
+    T_resids = build_residuals_hist(
+        T_hist, full_fit, True, name='TMethodResiduals')
+    T_resid_dist = get_residuals_distribution(T_resids, 'T-Method', config)
 
     # build fractional loss hists
     frac_losses = make_loss_correction_hists(muon_hists[0],
@@ -1077,6 +1097,9 @@ def run_analysis(config):
     print_fit_plots(a_weight_hist, fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
+    A_resids = build_residuals_hist(
+        a_weight_hist, a_weight_fit, True, name='AWeightedResiduals')
+    A_resid_dist = get_residuals_distribution(A_resids, 'A-Weighted', config)
 
     print('A-Weighted pileup multiplier scan...')
 
@@ -1129,12 +1152,14 @@ def run_analysis(config):
 
         t_scan_hist = T_hist.Clone()
         t_scan_hist.SetName('t_scan_hist')
-        t_scan_res = start_time_scan(t_scan_hist, start_time_fit,
-                                     start=config['fit_start'],
-                                     end=config['extended_fit_end'],
-                                     step=start_time_conf['step'],
-                                     n_pts=start_time_conf['n_pts'],
-                                     fit_options=config['fit_options'] + 'E')
+        t_scan_chi2, t_scan_res = start_time_scan(
+            t_scan_hist, start_time_fit,
+            start=config['fit_start'],
+            end=config['extended_fit_end'],
+            step=start_time_conf['step'],
+            n_pts=start_time_conf['n_pts'],
+            fit_options=config['fit_options'] + 'E')
+        t_scan_chi2.SetName('TMethodChi2VsStartTime')
 
         t_start_canvs = []
         for i, res in enumerate(t_scan_res):
@@ -1155,12 +1180,14 @@ def run_analysis(config):
 
         a_scan_hist = a_weight_hist.Clone()
         a_scan_hist.SetName('a_scan_hist')
-        a_scan_res = start_time_scan(a_scan_hist, a_start_time_fit,
-                                     start=config['fit_start'],
-                                     end=config['extended_fit_end'],
-                                     step=start_time_conf['step'],
-                                     n_pts=start_time_conf['n_pts'],
-                                     fit_options=config['fit_options'] + 'E')
+        a_scan_chi2, a_scan_res = start_time_scan(
+            a_scan_hist, a_start_time_fit,
+            start=config['fit_start'],
+            end=config['extended_fit_end'],
+            step=start_time_conf['step'],
+            n_pts=start_time_conf['n_pts'],
+            fit_options=config['fit_options'] + 'E')
+        a_scan_chi2.SetName('AWeightedChi2VsStartTime')
 
         a_start_canvs = []
         for i, res in enumerate(a_scan_res):
@@ -1181,10 +1208,19 @@ def run_analysis(config):
     out_f = r.TFile(f'{out_dir}/{out_f_name}', 'recreate')
 
     # save A weighted and T Method plots
+    t_dir = out_f.mkdir('T-Method')
+    t_dir.cd()
     T_hist.Write()
     full_fit.Write()
+    T_resids.Write()
+    T_resid_dist.Write()
+
+    a_dir = out_f.mkdir('A-Weighted')
+    a_dir.cd()
     a_weight_hist.Write()
     a_weight_fit.Write()
+    A_resids.Write()
+    A_resid_dist.Write()
 
     # save A vs E model
     signed_a_vs_e.Write()
@@ -1211,7 +1247,7 @@ def run_analysis(config):
     e_sweep_chi2_g.Write()
 
     # save calo sweep plots
-    calo_sweep_dir = out_f.mkdir('TMethodCaloSweep')
+    calo_sweep_dir = t_dir.mkdir('caloSweep')
     calo_sweep_dir.cd()
     for par_num in calo_sweep_par_gs:
         graph = calo_sweep_par_gs[par_num]
@@ -1222,7 +1258,7 @@ def run_analysis(config):
         result[1].Write()
     calo_chi2_g.Write()
 
-    calo_sweep_a_dir = out_f.mkdir('AWeightedCaloSweep')
+    calo_sweep_a_dir = a_dir.mkdir('caloSweep')
     calo_sweep_a_dir.cd()
     for par_num in calo_sweep_a_par_gs:
         graph = calo_sweep_a_par_gs[par_num]
@@ -1234,8 +1270,7 @@ def run_analysis(config):
     calo_a_chi2_g.Write()
 
     # save pileup multiplier scan results
-    pu_scan_dir = out_f.mkdir('pileupScans')
-    t_pu_dir = pu_scan_dir.mkdir('tMethod')
+    t_pu_dir = t_dir.mkdir('pileupScan')
     t_pu_dir.cd()
     t_pu_chi2_g.SetName('tMethodChi2VsPuScale')
     t_pu_chi2_g.Write()
@@ -1243,7 +1278,7 @@ def run_analysis(config):
         graph = t_pu_par_gs[par_num]
         graph.SetName(f'tMethodPar{par_num}VsPuScale')
         graph.Write()
-    a_pu_dir = pu_scan_dir.mkdir('aWeighted')
+    a_pu_dir = a_dir.mkdir('pileupScan')
     a_pu_dir.cd()
     a_pu_chi2_g.SetName('aWeightedChi2VsPuScale')
     a_pu_chi2_g.Write()
@@ -1254,14 +1289,15 @@ def run_analysis(config):
 
     if config['do_start_time_scans']:
         # save start time scan results
-        start_scan_dir = out_f.mkdir('startTimeScans')
-        t_start_dir = start_scan_dir.mkdir('T-Method')
+        t_start_dir = t_dir.mkdir('startTimeScan')
         t_start_dir.cd()
+        t_scan_chi2.Write()
         for canv in t_start_canvs:
             canv.Write()
 
-        a_start_dir = start_scan_dir.mkdir('A-Weighted')
+        a_start_dir = a_dir.mkdir('startTimeScan')
         a_start_dir.cd()
+        a_scan_chi2.Write()
         for canv in a_start_canvs:
             canv.Write()
 

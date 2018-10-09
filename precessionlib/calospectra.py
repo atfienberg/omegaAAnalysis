@@ -216,11 +216,18 @@ class CaloSpectra:
             components.append(sum(trip_comps))
 
         # get normalization coefficients
-        norm_factors, cov = self._fit_pu_coeffs(
-            calo_num, components,
-            pu_energy_min, pu_energy_max, pu_time_min)
+        try:
+            norm_factors, cov = self._fit_pu_coeffs(
+                calo_num, components,
+                pu_energy_min, pu_energy_max, pu_time_min)
+        except ValueError:
+            # no high count pileup bins, set the coefficients to zero
+            print('Failure to fit pileup coefficients'
+                  f' for z bin {calo_num}: setting to 0')
+            norm_factors = np.zeros(len(components))
+            cov = np.identity(len(components))
 
-        # apply the normalization factors
+            # apply the normalization factors
         for comp, norm in zip(components, norm_factors):
             comp *= norm
 
