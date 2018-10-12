@@ -247,7 +247,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
 
     print('\nfinished basic T-Method analysis\n')
 
-    return best_T_hist, full_fit_tf1, fr, optimal_thresh_bin, muon_hists
+    return best_T_hist, full_fit_tf1, fft, fr, optimal_thresh_bin, muon_hists
 
 
 def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
@@ -698,7 +698,7 @@ def get_residuals_distribution(residuals_hist, name, config,
                                n_bins=100, range_min=-5, range_max=5):
     ''' histogram the residuals within the fit window '''
     resid_dist = r.TH1D(f'{residuals_hist.GetName()}_distro',
-                        f'{name}; residuals; n bins', 100, -5, 5)
+                        f'{name}; pull; n bins', 100, -5, 5)
 
     for i_bin in range(1, residuals_hist.GetNbinsX() + 1):
         bin_t = residuals_hist.GetBinCenter(i_bin)
@@ -998,7 +998,7 @@ def run_analysis(config):
     # Start with a T-Method analysis
     #
 
-    T_hist, full_fit, result, thresh, muon_hists = T_method_analysis(
+    T_hist, full_fit, T_fft, result, thresh, muon_hists = T_method_analysis(
         all_calo_2d, blinder, config)
     T_resids = build_residuals_hist(
         T_hist, full_fit, True, name='TMethodResiduals')
@@ -1090,11 +1090,11 @@ def run_analysis(config):
                               a_weight_hist.GetBinContent(
                                   a_weight_hist.FindBin(30)) * 1.6)
 
-    resids, fft = fit_and_fft(
+    resids, A_fft = fit_and_fft(
         a_weight_hist, a_weight_fit, 'fullFitAWeight',
         config['fit_options'],
         config['fit_start'], config['extended_fit_end'])
-    print_fit_plots(a_weight_hist, fft,
+    print_fit_plots(a_weight_hist, A_fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
     A_resids = build_residuals_hist(
@@ -1213,12 +1213,14 @@ def run_analysis(config):
     T_hist.Write()
     full_fit.Write()
     T_resids.Write()
+    T_fft.Write()
     T_resid_dist.Write()
 
     a_dir = out_f.mkdir('A-Weighted')
     a_dir.cd()
     a_weight_hist.Write()
     a_weight_fit.Write()
+    A_fft.Write()
     A_resids.Write()
     A_resid_dist.Write()
 
