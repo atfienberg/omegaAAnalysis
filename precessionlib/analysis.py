@@ -1258,6 +1258,7 @@ def run_analysis(config):
     for result in calo_sweep_res:
         result[0].Write()
         result[1].Write()
+        result[-1].Write()
     calo_chi2_g.Write()
 
     calo_sweep_a_dir = a_dir.mkdir('caloSweep')
@@ -1269,6 +1270,7 @@ def run_analysis(config):
     for result in calo_sweep_a_res:
         result[0].Write()
         result[1].Write()
+        result[-1].Write()
     calo_a_chi2_g.Write()
 
     # save pileup multiplier scan results
