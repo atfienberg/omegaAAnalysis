@@ -14,7 +14,9 @@ import numpy as np
 from precessionlib.calospectra import CaloSpectra
 from precessionlib.util import rebinned_last_axis
 
-do_errors = True
+# keep do errors false for now
+# until I think of a better way to calculate them
+do_errors = False
 
 
 def build_root_hists(filename, histname, rebin_factor, do_errors):
@@ -58,8 +60,10 @@ def main():
     infile_name = sys.argv[1]
     file = r.TFile(infile_name)
 
-    dirs = ['clustersAndCoincidences',
-            'clustersAndCoincidencesNoGainCorrection']
+    # dirs = ['clustersAndCoincidences',
+    #         'clustersAndCoincidencesNoGainCorrection']
+
+    dirs = ['clustersAndCoincidences']
 
     hists = []
 
