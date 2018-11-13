@@ -133,7 +133,8 @@ def after_t(histogram, t_start):
     return new_hist
 
 
-def build_residuals_hist(histogram, func, use_errors=False, name=None):
+def build_residuals_hist(histogram, func, use_errors=False, name=None,
+                         t_max=650):
     fit_name = func.GetName()
 
     if name is None:
@@ -144,7 +145,11 @@ def build_residuals_hist(histogram, func, use_errors=False, name=None):
                         histogram.GetNbinsX(), histogram.GetBinLowEdge(1),
                         histogram.GetBinLowEdge(histogram.GetNbinsX()) + 1)
 
-    for i_bin in range(1, resid_hist.GetNbinsX() + 1):
+    max_bin = resid_hist.FindBin(t_max)
+    if max_bin >= resid_hist.GetNbinsX():
+        max_bin = resid_hist.GetNbinsX()
+
+    for i_bin in range(1, max_bin):
         content = histogram.GetBinContent(i_bin)
         func_val = func.Eval(histogram.GetBinCenter(i_bin))
         error = histogram.GetBinError(i_bin)

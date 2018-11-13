@@ -32,7 +32,7 @@ def do_threshold_sweep(all_calo_2d, fit_function, fit_start, fit_end,
 
     r_precisions = []
     best_thresh = None
-    for e_bin in range(thresh_bin - 50, thresh_bin + 50):
+    for e_bin in range(thresh_bin - 30, thresh_bin + 30):
         this_proj = all_calo_2d.ProjectionX(f'proj{e_bin}', e_bin, -1)
 
         if fit_function.GetParameter(0) == 0:

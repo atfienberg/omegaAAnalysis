@@ -104,7 +104,6 @@ class CaloSpectra:
     def pu_coeffs(self):
         '''get pileup scale coefficients
         gives a list, each element is for one calo'''
-        ''
         try:
             return self._pu_coeffs
         except AttributeError:
