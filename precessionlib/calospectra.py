@@ -10,6 +10,7 @@ import ROOT as r
 import numpy as np
 import subprocess
 import os
+from scipy.optimize import curve_fit
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 
@@ -32,20 +33,28 @@ class CaloSpectra:
     def __init__(self,
                  do_triple=False,
                  pu_energy_min=4000, pu_energy_max=6000,
-                 pu_time_min=30):
+                 pu_time_min=30, single_param=False, param_guess=None):
         self._do_triple = do_triple
         self._pu_emin = pu_energy_min
         self._pu_emax = pu_energy_max
         self._pu_tmin = pu_time_min
 
+        self.single_param = single_param
+        if single_param:
+            if param_guess is None:
+                raise ValueError(
+                    'must provide param_guess when using single_param=True')
+            self.param_guess = param_guess
+
     @staticmethod
     def from_root_file(rootfilename, histname='master3D',
                        do_triple=False,
                        pu_energy_min=4000, pu_energy_max=6000,
-                       pu_time_min=30):
+                       pu_time_min=30, single_param=False, param_guess=None):
         ''' load 3d histogram from rootfile
         store numpy version of 3d hist + x, y, z axes'''
-        out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max, pu_time_min)
+        out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max,
+                          pu_time_min, single_param, param_guess)
 
         file = r.TFile(rootfilename)
         hist = file.Get(histname)
@@ -68,7 +77,7 @@ class CaloSpectra:
     def from_np_file(numpyfilename,
                      do_triple=False,
                      pu_energy_min=4000, pu_energy_max=6000,
-                     pu_time_min=30):
+                     pu_time_min=30, single_param=False, param_guess=None):
         out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max, pu_time_min)
 
         loaded = np.load(numpyfilename)
@@ -226,7 +235,7 @@ class CaloSpectra:
             norm_factors = np.zeros(len(components))
             cov = np.identity(len(components))
 
-            # apply the normalization factors
+        # apply the normalization factors
         for comp, norm in zip(components, norm_factors):
             comp *= norm
 
@@ -306,15 +315,36 @@ class CaloSpectra:
         # remove the bins that had low counts
         components = components[high_count_bins, :]
 
-        # use Poisson errors,
-        # sqrt of the bin content from the perturbed energy spec
-        errors = np.sqrt(perturbed)
-        components *= 1 / errors[:, None]
-        perturbed *= 1 / errors
+        if self.single_param:
+            # if fitting with a single parameter, use curve_fit
+            # because the fit is not linear
+            def fit_f(x, eps):
+                retval = np.zeros_like(x, dtype='float64')
+                for i, _ in enumerate(pu_comps, 1):
+                    retval += eps**i * components.T[i - 1]
 
-        coeffs, _, _, _ = np.linalg.lstsq(components, perturbed)
+                return retval
 
-        covariance = np.linalg.inv(components.T @ components)
+            comp, cov = curve_fit(
+                fit_f, np.arange(perturbed.shape[0]),
+                perturbed, p0=self.param_guess, sigma=np.sqrt(perturbed))
+
+            coeffs = np.array([comp[0]**i for i, _ in enumerate(pu_comps, 1)])
+            covariance = cov
+
+        else:
+            # if fitting with linear combo of comps,
+            # we can use linear least squares
+
+            # use Poisson errors,
+            # sqrt of the bin content from the perturbed energy spec
+            errors = np.sqrt(perturbed)
+            components *= 1 / errors[:, None]
+            perturbed *= 1 / errors
+
+            coeffs, _, _, _ = np.linalg.lstsq(components, perturbed)
+
+            covariance = np.linalg.inv(components.T @ components)
 
         return coeffs, covariance
 
