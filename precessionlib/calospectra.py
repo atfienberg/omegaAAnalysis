@@ -32,7 +32,7 @@ class CaloSpectra:
 
     def __init__(self,
                  do_triple=False,
-                 pu_energy_min=4000, pu_energy_max=6000,
+                 pu_energy_min=3500, pu_energy_max=6000,
                  pu_time_min=30, single_param=False, param_guess=None):
         self._do_triple = do_triple
         self._pu_emin = pu_energy_min
