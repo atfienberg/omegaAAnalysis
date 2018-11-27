@@ -49,7 +49,7 @@ class CaloSpectra:
     @staticmethod
     def from_root_file(rootfilename, histname='master3D',
                        do_triple=False,
-                       pu_energy_min=4000, pu_energy_max=6000,
+                       pu_energy_min=3500, pu_energy_max=6000,
                        pu_time_min=30, single_param=False, param_guess=None):
         ''' load 3d histogram from rootfile
         store numpy version of 3d hist + x, y, z axes'''
@@ -76,7 +76,7 @@ class CaloSpectra:
     @staticmethod
     def from_np_file(numpyfilename,
                      do_triple=False,
-                     pu_energy_min=4000, pu_energy_max=6000,
+                     pu_energy_min=3500, pu_energy_max=6000,
                      pu_time_min=30, single_param=False, param_guess=None):
         out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max, pu_time_min)
 

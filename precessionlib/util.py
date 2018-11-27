@@ -221,9 +221,11 @@ class ParamTimeScanResult():
             func.GetParName(par_num)))
 
         self._low = r.TGraph()
-        self._low.SetLineStyle(2)
+        self._low.SetLineWidth(2)
+        self._low.SetLineColor(r.kBlue)
         self._high = r.TGraph()
-        self._high.SetLineStyle(2)
+        self._high.SetLineWidth(2)
+        self._high.SetLineColor(r.kBlue)
 
     @property
     def par_num(self):

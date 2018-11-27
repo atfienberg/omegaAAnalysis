@@ -4,17 +4,21 @@
 # Aaron Fienberg
 # September 2018
 
-
 from precessionlib import analysis
 import json
+import sys
 
 
 def main():
-    with open('conf60H.json') as file:
+    # with open('confArtificialGainCor.json') as file:
+    with open(sys.argv[1]) as file:
         config = json.load(file)
 
     analysis.run_analysis(config)
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) < 2:
+        print('must provide config!')
+        sys.exit(0)
+    sys.exit(main())

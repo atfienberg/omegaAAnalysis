@@ -66,7 +66,7 @@ double full_wiggle_fit(double* x, double* p) {
 
   // assymetry/phase modulation
   A = A * (1 + exp(-t / tau_cbo) * A_cboa * cos(w_cbo * t - phi_cboa));
-  phi = phi * (1 + exp(-t / tau_cbo) * A_cbophi * cos(w_cbo * t - phi_cbophi));
+  phi = phi + exp(-t / tau_cbo) * A_cbophi * cos(w_cbo * t - phi_cbophi);
 
   double N_cbo = 1 + exp(-t / tau_cbo) * (A_cbo * cos(w_cbo * t - phi_cbo));
 

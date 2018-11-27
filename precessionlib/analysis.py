@@ -109,7 +109,7 @@ def fit_slice(master_3d, name, model_fit,
     # hist = calo_2d.ProjectionX(f'{name}', energy_bins[0], energy_bins[1])
 
     bin_width = hist.GetBinWidth(1)
-    hist.SetTitle(f';time [#mu s]; N / {bin_width:.3f} #mu s')
+    hist.SetTitle(f';time [#mus]; N / {bin_width:.3f} #mus')
 
     if adjust_N:
         model_fit.SetParameter(0,
@@ -158,8 +158,13 @@ def T_method_analysis(all_calo_2d, blinder, config):
     c.Print(f'{pdf_dir}/optimalThreshold.pdf')
 
     print(f'best threshold bin: {optimal_thresh_bin}')
+
+    if config['fix_thresh_bin']:
+        optimal_thresh_bin = config['thresh_bin']
+        print(f'forcing thresh bin to {optimal_thresh_bin}')
+
     best_thresh = all_calo_2d.GetYaxis().GetBinCenter(optimal_thresh_bin)
-    print(f'best threshold: {best_thresh}')
+    print(f'threshold: {best_thresh}')
     print('')
 
     # now do a five parameter fit with the optimal threshold
@@ -182,11 +187,23 @@ def T_method_analysis(all_calo_2d, blinder, config):
     print_fit_plots(best_T_hist, fft, cbo_freq, 'fiveParamAllCalos', pdf_dir)
 
     print('')
+
+    # adjust manually if we got a strange cbo frequency
+    if not 0.2 < cbo_freq < 0.4:
+        cbo_freq = config['cbo_freq_guess']
+
     print(f'estimated CBO frequency is {cbo_freq:.2f} MHz')
     print(f'this correspons to n = {n_of_CBO_freq(cbo_freq):.3f}')
 
     print('\nfitting with cbo N term...')
     with_cbo_tf1 = build_CBO_only_func(five_param_tf1, cbo_freq)
+
+    try:
+        print('limiting cbo lifetime')
+        tau_cbo_limits = config['tau_cbo_limits']
+        with_cbo_tf1.SetParLimits(6, tau_cbo_limits[0], tau_cbo_limits[1])
+    except KeyError:
+        pass
 
     resids, fft = fit_and_fft(
         best_T_hist, with_cbo_tf1, 'cboFitAllCalos',
@@ -216,6 +233,9 @@ def T_method_analysis(all_calo_2d, blinder, config):
     print('\nfitting with muon loss term included...')
     loss_tf1 = build_losses_func(vw_tf1)
 
+    if len(config['omega_vw_limits']):
+        loss_tf1.SetParLimits(13, *config['omega_vw_limits'])
+
     resids, fft = fit_and_fft(
         best_T_hist, loss_tf1, 'lossFitAllCalos',
         config['fit_options'],
@@ -226,6 +246,10 @@ def T_method_analysis(all_calo_2d, blinder, config):
 
     full_fit_tf1 = build_full_fit_tf1(loss_tf1, config)
     full_fit_tf1.SetName('tMethodFit')
+
+    for par_guess in config['full_fit_par_guesses']:
+        full_fit_tf1.SetParameter(par_guess[0], par_guess[1])
+
     resids, fft = fit_and_fft(
         best_T_hist, full_fit_tf1, 'fullFitAllCalos',
         config['fit_options'],
@@ -233,7 +257,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
     print_fit_plots(best_T_hist, fft, cbo_freq, 'fullFitAllCalos', pdf_dir)
 
     # grab the covariance matrix from the full fit
-    fr = best_T_hist.Fit(full_fit_tf1, config['fit_options'] + 'S', '',
+    fr = best_T_hist.Fit(full_fit_tf1, config['fit_options'] + 'EMS', '',
                          config['fit_start'], config['extended_fit_end'])
 
     corr_mat = fr.GetCorrelationMatrix()
@@ -345,6 +369,8 @@ def energy_sweep(master_3d, model_fit, config):
 
     results = []
 
+    r_guess = model_fit.GetParameter(4)
+
     for i, (low_bin, high_bin) in enumerate(bin_ranges):
         energy_axis = master_3d.GetYaxis()
         low_e = energy_axis.GetBinLowEdge(low_bin)
@@ -353,6 +379,7 @@ def energy_sweep(master_3d, model_fit, config):
 
         model_fit = clone_full_fit_tf1(model_fit,
                                        f'eFit{avg_e:.0f}')
+        model_fit.SetParameter(4, r_guess)
 
         print(f'slice from {low_e:.0f} to {high_e:.0f} MeV')
 
@@ -643,7 +670,7 @@ def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
     ''' vary the pileup multiplier and fit, for A_Weighted analysis
 
     corrected_2d: pileup corrected 2d histogram
-    uncorrected_2d: pileup uncorrected 2d histogram
+    uncorrected_2d: pileup uncorrected 2d histogramx
     a_vs_e_spline: asymmetry versus energy model
     model_fit: fit function to use, should be a "full fit"
     scales: a list of scale factors to use
@@ -779,7 +806,7 @@ def plot_threshold_sweep(all_calo_2d, r_precisions, best_bin):
                                       precision)
 
     best_Ecut = all_calo_2d.GetYaxis().GetBinCenter(best_bin)
-    precision_vs_threshg.SetTitle(f'optimal threshold: {best_Ecut} MeV;'
+    precision_vs_threshg.SetTitle(f'optimal threshold: {best_Ecut:.0f} MeV;'
                                   'energy threshold [MeV];'
                                   ' #omega_{a} uncertainty [ppm]')
 
@@ -811,6 +838,7 @@ def plot_loss_hists(lost_muon_rate,
     lost_muon_rate.Draw('hist')
     lost_muon_rate.SetTitle('')
     lost_muon_rate.GetXaxis().SetRangeUser(0, 300)
+    lost_muon_rate.GetXaxis().SetTitle('time [#mus]')
     lost_muon_rate.GetYaxis().SetRangeUser(1e-6, 1)
 
     lost_muon_prob.SetLineColor(r.kRed)
@@ -824,9 +852,9 @@ def plot_loss_hists(lost_muon_rate,
     leg.SetFillColor(r.kWhite)
     leg.SetShadowColor(r.kWhite)
     leg.AddEntry(lost_muon_rate, 'L(t)', 'l')
-    leg.AddEntry(lost_muon_prob, 'L(t) #bullet exp(t / #tau_{#mu})', 'l')
+    leg.AddEntry(lost_muon_prob, 'L(t) #bullet exp(t/#tau)', 'l')
     leg.AddEntry(plot_cumulative, '#int_{0}^{t} L(t\')'
-                 ' #bullet exp(t\' / #tau_{#mu}) dt\'', 'l')
+                 ' #bullet exp(t\'/#tau) dt\'', 'l')
 
     leg.Draw()
 
@@ -998,7 +1026,7 @@ def run_analysis(config):
     # Start with a T-Method analysis
     #
 
-    T_hist, full_fit, T_fft, result, thresh, muon_hists = T_method_analysis(
+    T_hist, full_fit, T_fft, T_result, thresh, muon_hists = T_method_analysis(
         all_calo_2d, blinder, config)
     T_resids = build_residuals_hist(
         T_hist, full_fit, True, name='TMethodResiduals')
@@ -1036,13 +1064,14 @@ def run_analysis(config):
 
     per_calo_fit = clone_full_fit_tf1(full_fit, 'per_calo_fit')
 
-    # free 2*omega_cbo params for per calo
-    for par_num in range(24, 27):
-        per_calo_fit.ReleaseParameter(par_num)
+    if config['free_2w_cbo']:
+        # free 2*omega_cbo params for per calo
+        for par_num in range(24, 27):
+            per_calo_fit.ReleaseParameter(par_num)
+            per_calo_fit.SetParLimits(24, 30, 200)
 
-    # limit the cbo lifetime params
+    # limit the cbo lifetime param
     per_calo_fit.SetParLimits(6, 50, 400)
-    per_calo_fit.SetParLimits(24, 30, 200)
 
     # fix vw parameters for the single calo fit
     for par_num in [10, 13]:
@@ -1097,6 +1126,13 @@ def run_analysis(config):
     print_fit_plots(a_weight_hist, A_fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
+
+    # get full A-weighted fit result
+    A_result = a_weight_hist.Fit(a_weight_fit, config['fit_options'] + 'EMS',
+                                 '',
+                                 config['fit_start'],
+                                 config['extended_fit_end'])
+
     A_resids = build_residuals_hist(
         a_weight_hist, a_weight_fit, True, name='AWeightedResiduals')
     A_resid_dist = get_residuals_distribution(A_resids, 'A-Weighted', config)
@@ -1215,6 +1251,8 @@ def run_analysis(config):
     T_resids.Write()
     T_fft.Write()
     T_resid_dist.Write()
+    T_result.SetName('TFitResult')
+    T_result.Write()
 
     a_dir = out_f.mkdir('A-Weighted')
     a_dir.cd()
@@ -1223,6 +1261,8 @@ def run_analysis(config):
     A_fft.Write()
     A_resids.Write()
     A_resid_dist.Write()
+    A_result.SetName('AFitResult')
+    A_result.Write()
 
     # save A vs E model
     signed_a_vs_e.Write()
