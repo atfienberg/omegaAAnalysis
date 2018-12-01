@@ -18,6 +18,17 @@ void initializeLossHist(const char* histName) {
 // do not call this before initializing the loss hist ptr
 double cumuLoss(double x) { return cumuLossHist->Interpolate(x); }
 
+double cboEnvelope(double t, double param) {
+  // test
+  const double tau_cbo = param;
+  // if (t > 50) {
+  //   return exp(-t / tau_cbo);
+  // } else {
+  //   return exp(-50 / tau_cbo);
+  // }
+  return exp(-t / tau_cbo);
+}
+
 // constexpr unsigned int n_full_fit_parameters = 27;
 constexpr unsigned int n_full_fit_parameters = 27;
 double full_wiggle_fit(double* x, double* p) {
@@ -65,10 +76,11 @@ double full_wiggle_fit(double* x, double* p) {
   double phi_2cbo = p[26];
 
   // assymetry/phase modulation
-  A = A * (1 + exp(-t / tau_cbo) * A_cboa * cos(w_cbo * t - phi_cboa));
-  phi = phi + exp(-t / tau_cbo) * A_cbophi * cos(w_cbo * t - phi_cbophi);
+  A = A * (1 + cboEnvelope(t, tau_cbo) * A_cboa * cos(w_cbo * t - phi_cboa));
+  phi = phi + cboEnvelope(t, tau_cbo) * A_cbophi * cos(w_cbo * t - phi_cbophi);
 
-  double N_cbo = 1 + exp(-t / tau_cbo) * (A_cbo * cos(w_cbo * t - phi_cbo));
+  double N_cbo =
+      1 + cboEnvelope(t, tau_cbo) * (A_cbo * cos(w_cbo * t - phi_cbo));
 
   double N_2cbo =
       1 + exp(-t / tau_2cbo) * (A_2cbo * cos(2 * w_cbo * t - phi_2cbo));

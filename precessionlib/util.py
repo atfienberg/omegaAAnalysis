@@ -210,22 +210,32 @@ def update_par_graphs(x_val, fit, par_gs):
 # also stores graphs for low bounds and high bounds
 # of allowed statistical drift
 class ParamTimeScanResult():
-    def __init__(self, func, par_num):
+    def __init__(self, func, par_num, is_start_scan=True):
         self._par_num = par_num
 
-        self._g = r.TGraphErrors()
+        self._g = r.TGraph()
 
         self._start_var = func.GetParError(par_num)**2
         self._start_val = func.GetParameter(par_num)
-        self._g.SetTitle(';start time [#mu s]; {}'.format(
-            func.GetParName(par_num)))
+        if is_start_scan:
+            self._g.SetTitle(';start time [#mus]; {}'.format(
+                func.GetParName(par_num)))
+        else:
+            self._g.SetTitle(';stop time [#mus]; {}'.format(
+                func.GetParName(par_num)))
 
-        self._low = r.TGraph()
-        self._low.SetLineWidth(2)
-        self._low.SetLineColor(r.kBlue)
-        self._high = r.TGraph()
-        self._high.SetLineWidth(2)
-        self._high.SetLineColor(r.kBlue)
+        self._low_drift = r.TGraph()
+        self._low_drift.SetLineWidth(2)
+        self._low_drift.SetLineColor(r.kBlue)
+        self._high_drift = r.TGraph()
+        self._high_drift.SetLineWidth(2)
+        self._high_drift.SetLineColor(r.kBlue)
+        self._low_err = r.TGraph()
+        self._low_err.SetLineWidth(2)
+        self._low_err.SetLineColor(r.kBlack)
+        self._high_err = r.TGraph()
+        self._high_err.SetLineWidth(2)
+        self._high_err.SetLineColor(r.kBlack)
 
     @property
     def par_num(self):
@@ -233,29 +243,44 @@ class ParamTimeScanResult():
 
     def add_point(self, time, func):
         point_num = self._g.GetN()
+        par_val = func.GetParameter(self._par_num)
+
         self._g.SetPoint(point_num,
                          time,
-                         func.GetParameter(self._par_num))
+                         par_val)
 
         error = func.GetParError(self._par_num)
-        self._g.SetPointError(point_num,
-                              0,
-                              error)
+        self._low_err.SetPoint(point_num, time, par_val - error)
+        self._high_err.SetPoint(point_num, time, par_val + error)
 
         var = error**2
         var_drift = var - self._start_var
         drift = math.sqrt(var_drift) if var_drift > 0 else 0
 
-        self._low.SetPoint(point_num, time,
-                           self._start_val - drift)
+        self._low_drift.SetPoint(point_num, time,
+                                 self._start_val - drift)
 
-        self._high.SetPoint(point_num, time,
-                            self._start_val + drift)
+        self._high_drift.SetPoint(point_num, time,
+                                  self._start_val + drift)
 
     def Draw(self):
         self._g.Draw('ap')
-        self._low.Draw('l same')
-        self._high.Draw('l same')
+        self._low_err.Draw('l same')
+        self._high_err.Draw('l same')
+        self._low_drift.Draw('l same')
+        self._high_drift.Draw('l same')
+
+        min_drift = min(self._low_drift.GetY())
+        min_err = min(self._low_err.GetY())
+        min_band = min(min_drift, min_err)
+
+        max_drift = max(self._high_drift.GetY())
+        max_err = max(self._high_err.GetY())
+        max_band = max(max_drift, max_err)
+
+        diff = max_band - min_band
+        self._g.GetYaxis().SetRangeUser(min_band - 0.1 * diff,
+                                        max_band + 0.1 * diff)
 
 
 def start_time_scan(hist, func, start, step, n_pts,
@@ -290,6 +315,44 @@ def start_time_scan(hist, func, start, step, n_pts,
 
         pt_num = chi2_g.GetN()
         chi2_g.SetPoint(pt_num, start, func.GetChisquare() / func.GetNDF())
+        chi2_g.SetPointError(pt_num, 0, math.sqrt(2 / func.GetNDF()))
+
+    return chi2_g, results
+
+
+def stop_time_scan(hist, func, start, step, n_pts,
+                   end=None, fit_options=''):
+    '''returns one (chi2_g, ParamTimeScanResults),
+    time scan results is a list, one result per non-fixed param'''
+    if end is None:
+        end = hist.GetBinLowEdge(hist.GetNbinsX() + 1)
+
+    hist.Fit(func, fit_options + '0q', '', start, end)
+
+    results = [ParamTimeScanResult(func, i, is_start_scan=False)
+               for i in range(func.GetNpar())
+               if is_free_param(func, i)]
+
+    step_in_bins = int(step // hist.GetBinWidth(1))
+
+    end_bin = hist.FindBin(end)
+
+    chi2_g = r.TGraphErrors()
+    chi2_g.SetTitle(';stop time [#mus]; #chi^{2}/ndf')
+
+    for i_bin in range(end_bin,
+                       end_bin - step_in_bins * n_pts,
+                       -step_in_bins):
+
+        end = hist.GetBinLowEdge(i_bin)
+
+        hist.Fit(func, fit_options + '0q', '', start, end)
+
+        for result in results:
+            result.add_point(end, func)
+
+        pt_num = chi2_g.GetN()
+        chi2_g.SetPoint(pt_num, end, func.GetChisquare() / func.GetNDF())
         chi2_g.SetPointError(pt_num, 0, math.sqrt(2 / func.GetNDF()))
 
     return chi2_g, results

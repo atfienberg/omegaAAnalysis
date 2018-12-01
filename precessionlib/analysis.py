@@ -199,8 +199,8 @@ def T_method_analysis(all_calo_2d, blinder, config):
     with_cbo_tf1 = build_CBO_only_func(five_param_tf1, cbo_freq)
 
     try:
-        print('limiting cbo lifetime')
         tau_cbo_limits = config['tau_cbo_limits']
+        print('limiting cbo lifetime')
         with_cbo_tf1.SetParLimits(6, tau_cbo_limits[0], tau_cbo_limits[1])
     except KeyError:
         pass
@@ -217,7 +217,15 @@ def T_method_analysis(all_calo_2d, blinder, config):
     print(f'this correspons to n = {n_of_CBO_freq(cbo_freq):.3f}')
 
     print('\nfitting with VW N term...')
+
     vw_tf1 = build_CBO_VW_func(with_cbo_tf1, cbo_freq)
+
+    try:
+        tau_vw_limits = config['tau_vw_limits']
+        print('limiting VW lifetime')
+        vw_tf1.SetParLimits(10, tau_vw_limits[0], tau_vw_limits[1])
+    except KeyError:
+        pass
 
     resids, fft = fit_and_fft(
         best_T_hist, vw_tf1, 'vwFitAllCalos',
@@ -233,8 +241,11 @@ def T_method_analysis(all_calo_2d, blinder, config):
     print('\nfitting with muon loss term included...')
     loss_tf1 = build_losses_func(vw_tf1)
 
-    if len(config['omega_vw_limits']):
-        loss_tf1.SetParLimits(13, *config['omega_vw_limits'])
+    try:
+        if len(config['omega_vw_limits']):
+            loss_tf1.SetParLimits(13, *config['omega_vw_limits'])
+    except KeyError:
+        pass
 
     resids, fft = fit_and_fft(
         best_T_hist, loss_tf1, 'lossFitAllCalos',
@@ -308,7 +319,8 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
     return results
 
 
-def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config):
+def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config,
+                          min_e=1000, max_e=3000):
     ''' sweep over all calos, apply A-weighted fit to each one
     returns a list of (hist, model_fit, resids, fft)) for each calo
     uses model_fit to determine guesses for first calo
