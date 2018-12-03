@@ -1339,7 +1339,7 @@ def run_analysis(config):
     a_pu_chi2_g.SetName('aWeightedChi2VsPuScale')
     a_pu_chi2_g.Write()
     for par_num in a_pu_par_gs:
-        graph = t_pu_par_gs[par_num]
+        graph = a_pu_par_gs[par_num]
         graph.SetName(f'aWeightedPar{par_num}VsPuScale')
         graph.Write()
 
