@@ -411,7 +411,8 @@ def make_wrapped_wiggle_plot(hist, fit, title,
     hists[0].Draw()
     funcs[0].Draw('same')
     t_per_wrap = hist.GetBinWidth(1) * bins_per_wrap
-    hists[0].SetTitle(f'{title};time modulo {t_per_wrap:.0f}#mus;')
+    hists[0].SetTitle(f'{title};time modulo {t_per_wrap:.0f}#mus;'
+                      f' N / {hists[0].GetBinWidth(1)*1000:.0f} ns')
     for hist, func in zip(hists[1:], funcs[1:]):
         hist.Draw('same')
         func.Draw('same')

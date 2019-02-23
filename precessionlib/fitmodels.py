@@ -187,9 +187,12 @@ def build_full_fit_tf1(loss_f, config, name='fullFit'):
     else:
         full_fit_tf1.SetParameter(19, freq_params['m'])
 
+    try:
+        full_fit_tf1.SetParameter(9, freq_params['freq_guess'])
+    except KeyError:
+        pass
+
     # parameters 20-23 come from the trackers
-    # they should be in the config, but I'll hard code them
-    # for this initial test
     full_fit_tf1.FixParameter(20, freq_params['A'])
     full_fit_tf1.FixParameter(21, freq_params['B'])
     full_fit_tf1.FixParameter(22, freq_params['tau_a'])

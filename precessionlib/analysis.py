@@ -220,13 +220,6 @@ def T_method_analysis(all_calo_2d, blinder, config):
 
     vw_tf1 = build_CBO_VW_func(with_cbo_tf1, cbo_freq)
 
-    try:
-        tau_vw_limits = config['tau_vw_limits']
-        print('limiting VW lifetime')
-        vw_tf1.SetParLimits(10, tau_vw_limits[0], tau_vw_limits[1])
-    except KeyError:
-        pass
-
     resids, fft = fit_and_fft(
         best_T_hist, vw_tf1, 'vwFitAllCalos',
         config['fit_options'],
@@ -260,6 +253,13 @@ def T_method_analysis(all_calo_2d, blinder, config):
 
     for par_guess in config['full_fit_par_guesses']:
         full_fit_tf1.SetParameter(par_guess[0], par_guess[1])
+
+    try:
+        tau_vw_limits = config['tau_vw_limits']
+        print('limiting VW lifetime')
+        full_fit_tf1.SetParLimits(10, tau_vw_limits[0], tau_vw_limits[1])
+    except KeyError:
+        pass
 
     resids, fft = fit_and_fft(
         best_T_hist, full_fit_tf1, 'fullFitAllCalos',
@@ -790,11 +790,14 @@ def plot_expected_freqs(resid_fft, cbo_freq, f_c=1.0 / 0.149, f_a=0.2291):
 
     n = n_of_CBO_freq(cbo_freq)
 
-    expected_freqs = {'f_{cbo}': cbo_freq, 'f_{y}': math.sqrt(n) * f_c,
-                      'f_{vw}': f_c * (1 - 2 * math.sqrt(n)),
-                      'f_{a} - f_{cbo}': cbo_freq - f_a,
-                      'f_{a} + f_{cbo}': cbo_freq + f_a,
-                      '2*f_{cbo}': cbo_freq * 2}
+    try:
+        expected_freqs = {'f_{cbo}': cbo_freq, 'f_{y}': math.sqrt(n) * f_c,
+                          'f_{vw}': f_c * (1 - 2 * math.sqrt(n)),
+                          'f_{a} - f_{cbo}': cbo_freq - f_a,
+                          'f_{a} + f_{cbo}': cbo_freq + f_a,
+                          '2*f_{cbo}': cbo_freq * 2}
+    except ValueError:
+        expected_freqs = []
 
     lns = []
     for name in expected_freqs:
@@ -1057,7 +1060,7 @@ def run_analysis(config):
     pu_scan_fit = clone_full_fit_tf1(full_fit, 'pu_scan_fit')
     pu_scan_fit.SetParLimits(6, 100, 400)
 
-    scale_factors = [i / 10 + 0.4 for i in range(10)]
+    scale_factors = [i / 10 for i in range(15)]
     pu_scale_fits = T_meth_pu_mult_scan(all_calo_2d, uncorrected_2d,
                                         thresh, pu_scan_fit,
                                         scale_factors, config)
@@ -1080,7 +1083,7 @@ def run_analysis(config):
         # free 2*omega_cbo params for per calo
         for par_num in range(24, 27):
             per_calo_fit.ReleaseParameter(par_num)
-            per_calo_fit.SetParLimits(24, 30, 200)
+        per_calo_fit.SetParLimits(24, 30, 200)
 
     # limit the cbo lifetime param
     per_calo_fit.SetParLimits(6, 50, 400)
@@ -1168,12 +1171,13 @@ def run_analysis(config):
     per_calo_a_fit = clone_full_fit_tf1(a_weight_fit, 'per_calo_a_fit')
 
     # free 2*omega_cbo params for per calo
-    for par_num in range(24, 27):
-        per_calo_a_fit.ReleaseParameter(par_num)
+    if config['free_2w_cbo']:
+        for par_num in range(24, 27):
+            per_calo_a_fit.ReleaseParameter(par_num)
+        per_calo_a_fit.SetParLimits(24, 30, 200)
 
     # limit the cbo lifetime params
     per_calo_a_fit.SetParLimits(6, 50, 400)
-    per_calo_a_fit.SetParLimits(24, 30, 200)
 
     # fix vw parameters for the single calo fit
     for par_num in [10, 13]:
