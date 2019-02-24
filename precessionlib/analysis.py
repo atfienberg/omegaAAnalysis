@@ -8,6 +8,7 @@
 import math
 import subprocess
 import ROOT as r
+import numpy as np
 from BlindersPy3 import Blinders, FitType
 from .util import *
 from .fitmodels import *
@@ -64,7 +65,6 @@ def fit_and_fft(hist, func, fit_name, fit_options,
         and returned after the FFT hist as a third return value
     '''
 
-    # fit twice, often finds a better minimum the second time
     hist.Fit(func, fit_options, '', fit_start, fit_end)
 
     if adjust_phase_parameters(func):
@@ -135,7 +135,7 @@ def fit_slice(master_3d, name, model_fit,
     return hist, resids, fft
 
 
-def T_method_analysis(all_calo_2d, blinder, config):
+def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     ''' do a full calo T-Method analysis
     returns T-Method hist, fit function, TFitResult, threshold_bin
     '''
@@ -176,7 +176,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
     bin_width = best_T_hist.GetBinWidth(1)
     best_T_hist.SetTitle(
         f'T-Method, all calos, {best_thresh/1000:.2f} GeV threshold; ' +
-        f'time [#mu s]; N / {bin_width:.3f} #mu s')
+        f'time [#mus]; N / {bin_width:.3f} #mu s')
 
     print('five parameter fit to T Method histogram...')
 
@@ -246,7 +246,7 @@ def T_method_analysis(all_calo_2d, blinder, config):
         config['fit_start'], config['fit_end'])
     print_fit_plots(best_T_hist, fft, cbo_freq, 'lossFitAllCalos', pdf_dir)
 
-    print('\afitting with full model over full range...')
+    print('fitting with full model over full range...')
 
     full_fit_tf1 = build_full_fit_tf1(loss_tf1, config)
     full_fit_tf1.SetName('tMethodFit')
@@ -261,10 +261,26 @@ def T_method_analysis(all_calo_2d, blinder, config):
     except KeyError:
         pass
 
+    if len(pu_unc_factors):
+        print('adjusting T-Method hist with pileup-corrected bin errors')
+        # one more fit using pu_uncertainty factors and sqrt(f) for bin error
+        if len(pu_unc_factors) != best_T_hist.GetNbinsX():
+            raise ValueError('Number of T-Method pileup uncertainty factors'
+                             ' does not match the number of bins'
+                             ' in the T-Method histogram!')
+
+        for i_bin in range(1, best_T_hist.GetNbinsX() + 1):
+            center = best_T_hist.GetBinCenter(i_bin)
+            new_err = np.sqrt(full_fit_tf1.Eval(center)) \
+                * pu_unc_factors[i_bin - 1]
+
+            best_T_hist.SetBinError(i_bin, new_err)
+
     resids, fft = fit_and_fft(
         best_T_hist, full_fit_tf1, 'fullFitAllCalos',
-        config['fit_options'],
+        config['fit_options'] + 'EM',
         config['fit_start'], config['extended_fit_end'])
+
     print_fit_plots(best_T_hist, fft, cbo_freq, 'fullFitAllCalos', pdf_dir)
 
     # grab the covariance matrix from the full fit
@@ -759,6 +775,7 @@ def get_residuals_distribution(residuals_hist, name, config,
 
 def plot_hist(hist):
     c = r.TCanvas()
+    hist.GetYaxis().SetRangeUser(10, hist.GetMaximum())
     hist.Draw()
     c.SetLogy(1)
 
@@ -1037,12 +1054,26 @@ def run_analysis(config):
     r.gStyle.SetStatW(0.25)
     r.gStyle.SetStatH(0.4)
 
+    try:
+        pu_unc_file = config['pu_uncertainty_file']
+    except KeyError:
+        pu_unc_file = None
+
+    if pu_unc_file is not None:
+        # load pileup uncertainty factors
+        factor_array = np.loadtxt(pu_unc_file, skiprows=1)
+        T_meth_unc_facs = factor_array[:, 1]
+        A_weight_unc_facs = factor_array[:, 2]
+    else:
+        T_meth_unc_facs = []
+        A_weight_unc_facs = []
+
     #
     # Start with a T-Method analysis
     #
 
     T_hist, full_fit, T_fft, T_result, thresh, muon_hists = T_method_analysis(
-        all_calo_2d, blinder, config)
+        all_calo_2d, blinder, config, T_meth_unc_facs)
     T_resids = build_residuals_hist(
         T_hist, full_fit, True, name='TMethodResiduals')
     T_resid_dist = get_residuals_distribution(T_resids, 'T-Method', config)
@@ -1126,7 +1157,15 @@ def run_analysis(config):
 
     a_weight_fit = clone_full_fit_tf1(full_fit, 'aWeightFit')
 
-    a_weight_fit.SetParLimits(10, 10, 40)
+    # A-Weighted fit sometimes has issues with VW, set some parameter limits
+    a_weight_fit.SetParLimits(10,
+                              0.8 * a_weight_fit.GetParameter(10),
+                              1.2 * a_weight_fit.GetParameter(10))
+
+    a_weight_fit.SetParLimits(13,
+                              0.985 * a_weight_fit.GetParameter(13),
+                              1.015 * a_weight_fit.GetParameter(13))
+
     # fix vw, a-weight fit seems to have issues with it
     # a_weight_fit.FixParameter(13, a_weight_fit.GetParameter(13))
 
@@ -1134,9 +1173,23 @@ def run_analysis(config):
                               a_weight_hist.GetBinContent(
                                   a_weight_hist.FindBin(30)) * 1.6)
 
+    if len(A_weight_unc_facs):
+        print('adjusting A-Weighted hist with pileup-corrected bin errors')
+        # one more fit using pu_uncertainty factors and sqrt(f) for bin error
+        if len(A_weight_unc_facs) != a_weight_hist.GetNbinsX():
+            raise ValueError('Number of A-Weighted pileup uncertainty factors'
+                             ' does not match the number of bins'
+                             ' in the A-Weighted histogram!')
+
+        for i_bin in range(1, a_weight_hist.GetNbinsX() + 1):
+            new_err = a_weight_hist.GetBinError(i_bin) \
+                * A_weight_unc_facs[i_bin - 1]
+
+            a_weight_hist.SetBinError(i_bin, new_err)
+
     resids, A_fft = fit_and_fft(
         a_weight_hist, a_weight_fit, 'fullFitAWeight',
-        config['fit_options'],
+        config['fit_options'] + 'EM',
         config['fit_start'], config['extended_fit_end'])
     print_fit_plots(a_weight_hist, A_fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
