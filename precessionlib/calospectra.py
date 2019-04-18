@@ -310,8 +310,8 @@ class CaloSpectra:
         perturbed = perturbed[high_count_bins]
 
         # component energy spectra
-        components = np.hstack(comp[:, times][energies, :].sum(axis=1)[
-            :, None] for comp in pu_comps)
+        components = np.hstack([comp[:, times][energies, :].sum(axis=1)[
+            :, None] for comp in pu_comps])
         # remove the bins that had low counts
         components = components[high_count_bins, :]
 

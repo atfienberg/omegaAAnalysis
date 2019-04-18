@@ -56,7 +56,7 @@ def find_cbo_freq(fft_hist):
 
 
 def fit_and_fft(hist, func, fit_name, fit_options,
-                fit_start, fit_end, find_cbo=False):
+                fit_start, fit_end, find_cbo=False, double_fit=False):
     ''' fit hist to a function and FFT the residuals
         returns the residuals hist and the FFT hist
 
@@ -66,6 +66,8 @@ def fit_and_fft(hist, func, fit_name, fit_options,
     '''
 
     hist.Fit(func, fit_options, '', fit_start, fit_end)
+    if double_fit:
+        hist.Fit(func, fit_options, '', fit_start, fit_end)
 
     if adjust_phase_parameters(func):
         # adjusted some phase parameters, try fitting again
@@ -1163,11 +1165,8 @@ def run_analysis(config):
                               1.2 * a_weight_fit.GetParameter(10))
 
     a_weight_fit.SetParLimits(13,
-                              0.985 * a_weight_fit.GetParameter(13),
-                              1.015 * a_weight_fit.GetParameter(13))
-
-    # fix vw, a-weight fit seems to have issues with it
-    # a_weight_fit.FixParameter(13, a_weight_fit.GetParameter(13))
+                              0.975 * a_weight_fit.GetParameter(13),
+                              1.025 * a_weight_fit.GetParameter(13))
 
     a_weight_fit.SetParameter(0,
                               a_weight_hist.GetBinContent(
@@ -1190,13 +1189,19 @@ def run_analysis(config):
     resids, A_fft = fit_and_fft(
         a_weight_hist, a_weight_fit, 'fullFitAWeight',
         config['fit_options'] + 'EM',
-        config['fit_start'], config['extended_fit_end'])
+        config['fit_start'], config['extended_fit_end'], double_fit=True)
     print_fit_plots(a_weight_hist, A_fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)
 
     # get full A-weighted fit result
-    A_result = a_weight_hist.Fit(a_weight_fit, config['fit_options'] + 'EMS',
+    # A_result = a_weight_hist.Fit(a_weight_fit, config['fit_options'] + 'EMS',
+    #                              '',
+    #                              config['fit_start'],
+    #                              config['extended_fit_end'], double_fit=True)
+
+    # print out final A-Weighted fit result to make sure it was successful
+    A_result = a_weight_hist.Fit(a_weight_fit, 'EMS',
                                  '',
                                  config['fit_start'],
                                  config['extended_fit_end'])
