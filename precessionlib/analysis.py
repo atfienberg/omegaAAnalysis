@@ -194,6 +194,25 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     if not 0.2 < cbo_freq < 0.4:
         cbo_freq = config['cbo_freq_guess']
 
+    # adjust fit start time to closest zero crossing, if requested
+    if config['closest_zero_crossing']:
+        Ac = five_param_tf1.GetParameter(2)
+        As = five_param_tf1.GetParameter(3)
+        phi = math.atan2(As, Ac)
+        omega_guess = blinder.paramToFreq(five_param_tf1.GetParameter(4))
+
+        old_start = config['fit_start']
+        config['fit_start'] = closest_zero_crossing(config['fit_start'],
+                                                    omega_guess,
+                                                    phi)
+
+        adjustment = (config['fit_start'] - old_start) * 1000
+
+        print(f'adjusted fit start time by {adjustment} ns')
+        print(f"new start time: {config['fit_start']}")
+    else:
+        print('did not adjust the fit start time')
+
     print(f'estimated CBO frequency is {cbo_freq:.2f} MHz')
     print(f'this correspons to n = {n_of_CBO_freq(cbo_freq):.3f}')
 
