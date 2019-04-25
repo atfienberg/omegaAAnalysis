@@ -35,6 +35,31 @@ def is_free_param(func, par_num):
     return min_val != max_val or min_val == 0 and max_val == 0
 
 
+def copy_fit_parameter(from_f, to_f, par_num):
+    '''copy a fit parameter, including name,
+    value, and limits, from from_f to to_f '''
+    par_val = from_f.GetParameter(par_num)
+
+    if is_free_param(from_f, par_num):
+        to_f.SetParameter(par_num, par_val)
+
+        low, high = r.Double(), r.Double()
+        from_f.GetParLimits(par_num, low, high)
+        if not (low == 0 and high == 0):
+            to_f.SetParLimits(par_num, low, high)
+
+    else:
+        to_f.FixParameter(par_num, par_val)
+
+    to_f.SetParName(par_num, from_f.GetParName(par_num))
+
+
+def copy_all_parameters(from_f, to_f):
+    ''' copy all fit parameters from from_f to to_f'''
+    for par_num in range(from_f.GetNpar()):
+        copy_fit_parameter(from_f, to_f, par_num)
+
+
 def AcAs_to_APhi(func, Ac_num, As_num):
     ''' transforms parameters used in an Ac, As parameterization
     into parameters for an a, phi parameterization'''
@@ -91,6 +116,19 @@ def adjust_phase_parameters(func):
         func.SetParameter(par_num, val)
 
     return any_adjusted
+
+
+def closest_zero_crossing(t, omega, phi):
+    ''' returns the closest zero-crossing to t based on
+    omega and phi, assuming function of form cos(omega * t - phi)'''
+    phase = (omega * t - phi - math.pi / 2) % math.pi
+
+    if phase == 0:
+        return t
+    elif phase < math.pi / 2:
+        return t - phase / omega
+    else:
+        return t + (math.pi - phase) / omega
 
 
 def strip_par_name(par_name):
@@ -214,6 +252,7 @@ class ParamTimeScanResult():
         self._par_num = par_num
 
         self._g = r.TGraph()
+        self._g.SetName('parScan')
 
         self._start_var = func.GetParError(par_num)**2
         self._start_val = func.GetParameter(par_num)
@@ -225,17 +264,24 @@ class ParamTimeScanResult():
                 func.GetParName(par_num)))
 
         self._low_drift = r.TGraph()
+        self._low_drift.SetName('lowDrift')
         self._low_drift.SetLineWidth(2)
         self._low_drift.SetLineColor(r.kBlue)
+
         self._high_drift = r.TGraph()
         self._high_drift.SetLineWidth(2)
         self._high_drift.SetLineColor(r.kBlue)
+        self._high_drift.SetName('highDrift')
+
         self._low_err = r.TGraph()
         self._low_err.SetLineWidth(2)
         self._low_err.SetLineColor(r.kBlack)
+        self._low_err.SetName('lowErr')
+
         self._high_err = r.TGraph()
         self._high_err.SetLineWidth(2)
         self._high_err.SetLineColor(r.kBlack)
+        self._high_err.SetName('highErr')
 
     @property
     def par_num(self):

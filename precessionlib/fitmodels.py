@@ -44,12 +44,8 @@ def build_CBO_only_func(five_par_f, cbo_freq):
     ''' builds a five params + CBO params TF1
     based on a five parameter fit function '''
     with_cbo_tf1 = r.TF1('with_cbo_TF1', fit_with_cbo_str, 0, 700)
-    for par_num in range(five_par_f.GetNpar()):
-        with_cbo_tf1.SetParameter(
-            par_num, five_par_f.GetParameter(par_num))
-        with_cbo_tf1.SetParName(par_num, five_par_f.GetParName(par_num))
 
-    with_cbo_tf1.FixParameter(5, with_cbo_tf1.GetParameter(5))
+    copy_all_parameters(five_par_f, with_cbo_tf1)
 
     # tau_cbo
     with_cbo_tf1.SetParName(6, '#tau_{CBO}')
@@ -77,11 +73,8 @@ def build_CBO_VW_func(cbo_f, cbo_freq, f_c=1.0 / 0.149):
     ''' builds a five params + CBO params + VW TF1
     based on a five params + CBO fit function '''
     with_vw_tf1 = r.TF1('with_vw_tf1', fit_with_vw_str, 0, 700)
-    for par_num in range(cbo_f.GetNpar()):
-        with_vw_tf1.SetParameter(par_num, cbo_f.GetParameter(par_num))
-        with_vw_tf1.SetParName(par_num, cbo_f.GetParName(par_num))
 
-    with_vw_tf1.FixParameter(5, with_vw_tf1.GetParameter(5))
+    copy_all_parameters(cbo_f, with_vw_tf1)
 
     vw_freq = f_c * (1 - 2 * math.sqrt(n_of_CBO_freq(cbo_freq)))
     omega_vw = 2 * math.pi * vw_freq
@@ -123,11 +116,7 @@ def build_losses_func(vw_f):
 
     with_losses_tf1 = r.TF1('with_losses_tf1', fit_with_losses_str, 0, 700)
 
-    for par_num in range(vw_f.GetNpar()):
-        with_losses_tf1.SetParameter(par_num, vw_f.GetParameter(par_num))
-        with_losses_tf1.SetParName(par_num, vw_f.GetParName(par_num))
-
-    with_losses_tf1.FixParameter(5, with_losses_tf1.GetParameter(5))
+    copy_all_parameters(vw_f, with_losses_tf1)
 
     with_losses_tf1.SetParameter(14, 0)
     with_losses_tf1.SetParName(14, 'K_{loss}')
@@ -138,10 +127,10 @@ def build_losses_func(vw_f):
     return with_losses_tf1
 
 
-def build_full_fit_tf1(loss_f, config, name='fullFit'):
-    # build a full fit TF1, including CBO modulation of N, phi
-    # and changing CBO frequency
-    # this is implemented as a ROOT function in fitFunctions.C
+def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
+    '''build a full fit TF1, including CBO modulation of N, phi
+    and changing CBO frequency
+    this is implemented as a ROOT function in fitFunctions.C'''
 
     if not loss_hist_is_initialized():
         raise RuntimeError('Muon loss histogram is not initialized!')
@@ -149,11 +138,7 @@ def build_full_fit_tf1(loss_f, config, name='fullFit'):
     r.createFullFitTF1(name)
     full_fit_tf1 = r.gROOT.FindObject(name)
 
-    for par_num in range(loss_f.GetNpar()):
-        full_fit_tf1.SetParameter(par_num, loss_f.GetParameter(par_num))
-        full_fit_tf1.SetParName(par_num, loss_f.GetParName(par_num))
-
-    full_fit_tf1.FixParameter(5, full_fit_tf1.GetParameter(5))
+    copy_all_parameters(loss_f, full_fit_tf1)
 
     # rename and reset parameters
     # that are now using A, phi parameterization
@@ -210,6 +195,32 @@ def build_full_fit_tf1(loss_f, config, name='fullFit'):
     full_fit_tf1.SetParName(26, '#phi_{2CBO}')
     full_fit_tf1.FixParameter(26, 0)
 
+    # now set vertical betatron parameters.
+    # These default to being effectively excluded from the fit
+    try:
+        include_y_osc = config['include_y_osc']
+    except KeyError:
+        include_y_osc = False
+
+    if include_y_osc:
+        cbo_freq = full_fit_tf1.GetParameter(9) / 2 / math.pi
+        y_freq = f_c * math.sqrt(n_of_CBO_freq(cbo_freq))
+        w_y = 2 * math.pi * y_freq
+
+        full_fit_tf1.SetParName(27, '#tau_{y}')
+        full_fit_tf1.SetParameter(
+            27, cbo_freq / y_freq * full_fit_tf1.GetParameter(6))
+        full_fit_tf1.SetParName(28, 'A_{y}')
+        full_fit_tf1.SetParameter(28, 0.0001)
+        full_fit_tf1.SetParName(29, '#phi_{y}')
+        full_fit_tf1.SetParameter(29, 0)
+        full_fit_tf1.SetParName(30, '#omega_{y}')
+        full_fit_tf1.SetParameter(30, w_y)
+
+    else:
+        for par_num in range(27, 31):
+            full_fit_tf1.FixParameter(par_num, 0)
+
     full_fit_tf1.SetNpx(10000)
     full_fit_tf1.SetLineColor(r.kRed)
 
@@ -227,21 +238,7 @@ def clone_full_fit_tf1(full_fit, name):
     r.createFullFitTF1(name)
     new_fit = r.gROOT.FindObject(name)
 
-    for par_num in range(new_fit.GetNpar()):
-        new_fit.SetParName(par_num, full_fit.GetParName(par_num))
-
-        par_val = full_fit.GetParameter(par_num)
-
-        if is_free_param(full_fit, par_num):
-            new_fit.SetParameter(par_num, par_val)
-
-            low, high = r.Double(), r.Double()
-            full_fit.GetParLimits(par_num, low, high)
-            if not (low == 0 and high == 0):
-                new_fit.SetParLimits(par_num, low, high)
-
-        else:
-            new_fit.FixParameter(par_num, par_val)
+    copy_all_parameters(full_fit, new_fit)
 
     new_fit.SetNpx(10000)
     new_fit.SetLineColor(r.kRed)

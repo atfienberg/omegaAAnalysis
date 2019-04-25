@@ -241,6 +241,13 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     vw_tf1 = build_CBO_VW_func(with_cbo_tf1, cbo_freq)
 
+    try:
+        if len(config['omega_vw_limits']):
+            print(f'Limiting VW frequency to: {config["omega_vw_limits"]}')
+            vw_tf1.SetParLimits(13, *config['omega_vw_limits'])
+    except KeyError:
+        pass
+
     resids, fft = fit_and_fft(
         best_T_hist, vw_tf1, 'vwFitAllCalos',
         config['fit_options'],
@@ -254,12 +261,6 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     print('\nfitting with muon loss term included...')
     loss_tf1 = build_losses_func(vw_tf1)
-
-    try:
-        if len(config['omega_vw_limits']):
-            loss_tf1.SetParLimits(13, *config['omega_vw_limits'])
-    except KeyError:
-        pass
 
     resids, fft = fit_and_fft(
         best_T_hist, loss_tf1, 'lossFitAllCalos',

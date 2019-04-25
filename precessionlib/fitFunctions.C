@@ -34,7 +34,7 @@ double cboEnvelope(double t, double param) {
 }
 
 // constexpr unsigned int n_full_fit_parameters = 27;
-constexpr unsigned int n_full_fit_parameters = 27;
+constexpr unsigned int n_full_fit_parameters = 31;
 double full_wiggle_fit(double* x, double* p) {
   double t = x[0];
   double N_0 = p[0];
@@ -59,7 +59,7 @@ double full_wiggle_fit(double* x, double* p) {
   double phi_cbophi = p[18];
 
   double N_loss = 1 - K_loss * cumuLoss(t);
-  double N_vw = 1 + exp(-t / tau_vw) * (A_vw * cos(w_vw * t - phi_vw));
+  const double N_vw = 1 + exp(-t / tau_vw) * (A_vw * cos(w_vw * t - phi_vw));
 
   // tracker cbo frequency changes
   // parameters [19-23] come from the tracker
@@ -79,6 +79,14 @@ double full_wiggle_fit(double* x, double* p) {
   double A_2cbo = p[25];
   double phi_2cbo = p[26];
 
+  // vertical betatron oscillations
+  double tau_y = p[27];
+  double A_y = p[28];
+  double phi_y = p[29];
+  double w_y = p[30];
+  const double N_y =
+      A_y != 0 ? 1 + exp(-t / tau_y) * (A_y * cos(w_y * t - phi_y)) : 1;
+
   // assymetry/phase modulation
   A = A * (1 + cboEnvelope(t, tau_cbo) * A_cboa * cos(w_cbo * t - phi_cboa));
   phi = phi + cboEnvelope(t, tau_cbo) * A_cbophi * cos(w_cbo * t - phi_cbophi);
@@ -89,7 +97,7 @@ double full_wiggle_fit(double* x, double* p) {
   double N_2cbo =
       1 + exp(-t / tau_2cbo) * (A_2cbo * cos(2 * w_cbo * t - phi_2cbo));
 
-  double N = N_0 * N_cbo * N_2cbo * N_loss * N_vw;
+  double N = N_0 * N_cbo * N_2cbo * N_loss * N_vw * N_y;
 
   double wa = wa_ref * (1 + R * 1e-6);
 
