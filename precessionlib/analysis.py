@@ -191,7 +191,7 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     print('')
 
     # adjust manually if we got a strange cbo frequency
-    if not 0.2 < cbo_freq < 0.4:
+    if not 0.2 < cbo_freq < 0.5:
         cbo_freq = config['cbo_freq_guess']
 
     # adjust fit start time to closest zero crossing, if requested
