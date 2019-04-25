@@ -276,6 +276,10 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     for par_guess in config['full_fit_par_guesses']:
         full_fit_tf1.SetParameter(par_guess[0], par_guess[1])
 
+    pars_to_fix = config.get('full_fit_par_fixes', [])
+    for [par_num, val] in pars_to_fix:
+        full_fit_tf1.FixParameter(par_num, val)
+
     try:
         tau_vw_limits = config['tau_vw_limits']
         print('limiting VW lifetime')
