@@ -273,8 +273,8 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     full_fit_tf1 = build_full_fit_tf1(loss_tf1, config)
     full_fit_tf1.SetName('tMethodFit')
 
-    for par_guess in config['full_fit_par_guesses']:
-        full_fit_tf1.SetParameter(par_guess[0], par_guess[1])
+    for [par_num, val] in config['full_fit_par_guesses']:
+        full_fit_tf1.SetParameter(par_num, val)
 
     pars_to_fix = config.get('full_fit_par_fixes', [])
     for [par_num, val] in pars_to_fix:
@@ -1080,10 +1080,7 @@ def run_analysis(config):
     r.gStyle.SetStatW(0.25)
     r.gStyle.SetStatH(0.4)
 
-    try:
-        pu_unc_file = config['pu_uncertainty_file']
-    except KeyError:
-        pu_unc_file = None
+    pu_unc_file = config.get('pu_uncertainty_file', None)
 
     if pu_unc_file is not None:
         # load pileup uncertainty factors
