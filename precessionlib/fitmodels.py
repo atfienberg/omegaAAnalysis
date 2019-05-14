@@ -167,6 +167,9 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
     # frequency slope
     freq_params = config['cbo_freq_params']
 
+    full_fit_tf1.SetParName(31, 'Tracker Model Number')
+    full_fit_tf1.FixParameter(31, freq_params['model_num'])
+
     if freq_params['fix_slope']:
         full_fit_tf1.FixParameter(19, freq_params['m'])
     else:
