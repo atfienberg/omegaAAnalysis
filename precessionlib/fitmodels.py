@@ -26,7 +26,7 @@ fit_with_vw_str = f'{fit_with_cbo_str}*{vw_N_str}'
 fit_with_losses_str = f'{fit_with_vw_str}*(1-[14]*cumuLoss(x))'
 
 
-def build_5_param_func():
+def build_5_param_func(config):
     five_param_tf1 = r.TF1('five_param_tf1', five_param_str, 0, 700)
     five_param_tf1.SetParName(0, 'N_{0}')
     five_param_tf1.SetParName(1, '#tau')
@@ -37,10 +37,12 @@ def build_5_param_func():
     five_param_tf1.SetNpx(10000)
     five_param_tf1.SetLineColor(r.kRed)
 
+    apply_fit_conf(five_param_tf1, config)
+
     return five_param_tf1
 
 
-def build_CBO_only_func(five_par_f, cbo_freq):
+def build_CBO_only_func(five_par_f, cbo_freq, config):
     ''' builds a five params + CBO params TF1
     based on a five parameter fit function '''
     with_cbo_tf1 = r.TF1('with_cbo_TF1', fit_with_cbo_str, 0, 700)
@@ -66,10 +68,12 @@ def build_CBO_only_func(five_par_f, cbo_freq):
     with_cbo_tf1.SetNpx(10000)
     with_cbo_tf1.SetLineColor(r.kRed)
 
+    apply_fit_conf(with_cbo_tf1, config)
+
     return with_cbo_tf1
 
 
-def build_CBO_VW_func(cbo_f, cbo_freq, f_c=1.0 / 0.149):
+def build_CBO_VW_func(cbo_f, cbo_freq, config, f_c=1.0 / 0.149):
     ''' builds a five params + CBO params + VW TF1
     based on a five params + CBO fit function '''
     with_vw_tf1 = r.TF1('with_vw_tf1', fit_with_vw_str, 0, 700)
@@ -100,6 +104,8 @@ def build_CBO_VW_func(cbo_f, cbo_freq, f_c=1.0 / 0.149):
     with_vw_tf1.SetNpx(10000)
     with_vw_tf1.SetLineColor(r.kRed)
 
+    apply_fit_conf(with_vw_tf1, config)
+
     return with_vw_tf1
 
 
@@ -107,7 +113,7 @@ def loss_hist_is_initialized():
     return r.lossHistIsInitialized()
 
 
-def build_losses_func(vw_f):
+def build_losses_func(vw_f, config):
     ''' builds a function including VW, CBO, and muon losses
     based on a function including VW and CBO'''
 
@@ -123,6 +129,8 @@ def build_losses_func(vw_f):
 
     with_losses_tf1.SetNpx(10000)
     with_losses_tf1.SetLineColor(r.kRed)
+
+    apply_fit_conf(with_losses_tf1, config)
 
     return with_losses_tf1
 
@@ -227,6 +235,20 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
     full_fit_tf1.SetNpx(10000)
     full_fit_tf1.SetLineColor(r.kRed)
 
+    for [par_name, val] in config.get('fit_par_guesses', []):
+        par_num = get_par_index(full_fit_tf1, par_name)
+        full_fit_tf1.SetParameter(par_num, val)
+
+    pars_to_fix = config.get('fit_par_fixes', [])
+    for [par_name, val] in pars_to_fix:
+        par_num = get_par_index(full_fit_tf1, par_name)
+        full_fit_tf1.FixParameter(par_num, val)
+
+    pars_to_limit = config.get('fit_par_limits', [])
+    for [par_name, low, high] in pars_to_limit:
+        par_num = get_par_index(full_fit_tf1, par_name)
+        full_fit_tf1.SetParLimits(par_num, low, high)
+
     return full_fit_tf1
 
 
@@ -247,6 +269,36 @@ def clone_full_fit_tf1(full_fit, name):
     new_fit.SetLineColor(r.kRed)
 
     return new_fit
+
+
+def apply_fit_conf(func, config):
+    '''apply full fit conf to a function that is not the full_fit_tf1,
+    e.g. the CBO TF1 or vw TF1'''
+    for [par_name, val] in config.get('fit_par_guesses', []):
+        try:
+            par_num = get_par_index(func, par_name)
+        except ValueError:
+            continue
+
+        func.SetParameter(par_num, val)
+
+    pars_to_fix = config.get('fit_par_fixes', [])
+    for [par_name, val] in pars_to_fix:
+        try:
+            par_num = get_par_index(func, par_name)
+        except ValueError:
+            continue
+
+        func.FixParameter(par_num, val)
+
+    pars_to_limit = config.get('fit_par_limits', [])
+    for [par_name, low, high] in pars_to_limit:
+        try:
+            par_num = get_par_index(func, par_name)
+        except ValueError:
+            continue
+
+        func.SetParLimits(par_num, low, high)
 
 
 def prepare_loss_hist(config, T_meth_hist, tau=64.44):

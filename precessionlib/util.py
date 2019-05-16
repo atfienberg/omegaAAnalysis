@@ -35,6 +35,15 @@ def is_free_param(func, par_num):
     return min_val != max_val or min_val == 0 and max_val == 0
 
 
+def get_par_index(func, par_name):
+    ''' returns parameter index of par with name par_name'''
+    for par_num in range(func.GetNpar()):
+        if func.GetParName(par_num) == par_name:
+            return par_num
+
+    raise ValueError(f'{par_name} is not a parameter of {func.GetName()}!')
+
+
 def copy_fit_parameter(from_f, to_f, par_num):
     '''copy a fit parameter, including name,
     value, and limits, from from_f to to_f '''

@@ -149,7 +149,7 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     # sweep energy threshold to find the best energy cut
     omega_a_ref = blinder.paramToFreq(0)
-    five_param_tf1 = build_5_param_func()
+    five_param_tf1 = build_5_param_func(config)
     five_param_tf1.SetParameters(0, 64.4, 0.2, 0.2, 0, omega_a_ref)
     five_param_tf1.FixParameter(5, omega_a_ref)
     print('doing intial threshold sweep...')
@@ -217,14 +217,7 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     print(f'this correspons to n = {n_of_CBO_freq(cbo_freq):.3f}')
 
     print('\nfitting with cbo N term...')
-    with_cbo_tf1 = build_CBO_only_func(five_param_tf1, cbo_freq)
-
-    try:
-        tau_cbo_limits = config['tau_cbo_limits']
-        print('limiting cbo lifetime')
-        with_cbo_tf1.SetParLimits(6, tau_cbo_limits[0], tau_cbo_limits[1])
-    except KeyError:
-        pass
+    with_cbo_tf1 = build_CBO_only_func(five_param_tf1, cbo_freq, config)
 
     resids, fft = fit_and_fft(
         best_T_hist, with_cbo_tf1, 'cboFitAllCalos',
@@ -239,14 +232,7 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     print('\nfitting with VW N term...')
 
-    vw_tf1 = build_CBO_VW_func(with_cbo_tf1, cbo_freq)
-
-    try:
-        if len(config['omega_vw_limits']):
-            print(f'Limiting VW frequency to: {config["omega_vw_limits"]}')
-            vw_tf1.SetParLimits(13, *config['omega_vw_limits'])
-    except KeyError:
-        pass
+    vw_tf1 = build_CBO_VW_func(with_cbo_tf1, cbo_freq, config)
 
     resids, fft = fit_and_fft(
         best_T_hist, vw_tf1, 'vwFitAllCalos',
@@ -260,7 +246,7 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     c.Print(f'{pdf_dir}/lostMuonPlot.pdf')
 
     print('\nfitting with muon loss term included...')
-    loss_tf1 = build_losses_func(vw_tf1)
+    loss_tf1 = build_losses_func(vw_tf1, config)
 
     resids, fft = fit_and_fft(
         best_T_hist, loss_tf1, 'lossFitAllCalos',
@@ -272,20 +258,6 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     full_fit_tf1 = build_full_fit_tf1(loss_tf1, config)
     full_fit_tf1.SetName('tMethodFit')
-
-    for [par_num, val] in config['full_fit_par_guesses']:
-        full_fit_tf1.SetParameter(par_num, val)
-
-    pars_to_fix = config.get('full_fit_par_fixes', [])
-    for [par_num, val] in pars_to_fix:
-        full_fit_tf1.FixParameter(par_num, val)
-
-    try:
-        tau_vw_limits = config['tau_vw_limits']
-        print('limiting VW lifetime')
-        full_fit_tf1.SetParLimits(10, tau_vw_limits[0], tau_vw_limits[1])
-    except KeyError:
-        pass
 
     if len(pu_unc_factors):
         print('adjusting T-Method hist with pileup-corrected bin errors')
@@ -1181,13 +1153,16 @@ def run_analysis(config):
     a_weight_fit = clone_full_fit_tf1(full_fit, 'aWeightFit')
 
     # A-Weighted fit sometimes has issues with VW, set some parameter limits
-    a_weight_fit.SetParLimits(10,
-                              0.8 * a_weight_fit.GetParameter(10),
-                              1.2 * a_weight_fit.GetParameter(10))
+    # (if not already limited)
+    if is_free_param(a_weight_fit, 10):
+        a_weight_fit.SetParLimits(10,
+                                  0.8 * a_weight_fit.GetParameter(10),
+                                  1.2 * a_weight_fit.GetParameter(10))
 
-    a_weight_fit.SetParLimits(13,
-                              0.975 * a_weight_fit.GetParameter(13),
-                              1.025 * a_weight_fit.GetParameter(13))
+    if is_free_param(a_weight_fit, 13):
+        a_weight_fit.SetParLimits(13,
+                                  0.975 * a_weight_fit.GetParameter(13),
+                                  1.025 * a_weight_fit.GetParameter(13))
 
     a_weight_fit.SetParameter(0,
                               a_weight_hist.GetBinContent(
