@@ -132,7 +132,14 @@ class CaloSpectra:
     @property
     def cor_variances(self):
         '''returns variance for each bin in the corrected histogram
-        corrected histogram is self.array - self.pu_spectrum'''
+        corrected histogram is self.array - self.pu_spectrum
+
+        note: fluctuations in different energy bins
+        are correlated with each other,
+        so these variances should not be used to get
+        the uncertainty of T-Method or A-Weighted histogram bins.
+        Same goes for any quantity built by summing over energies
+        '''
         try:
             return self._cor_variances
         except AttributeError:
@@ -164,6 +171,123 @@ class CaloSpectra:
             self._energy_centers = 0.5 * (self.axes[1][:-1] + self.axes[1][1:])
             return self._energy_centers
 
+    def estimated_deadtimes(self, n_fills):
+        ''' returns list of estimated deadtimes, one per calorimeter,
+        assuming n_fills muon fills contributed to the input histogram used
+        to construct this CaloSpectra '''
+        output = []
+        # time bin width
+        t_width = self.time_centers[1] - self.time_centers[0]
+
+        for coeffs in self.pu_coeffs:
+            eps = coeffs[0]
+            output.append(eps * t_width * n_fills)
+
+        return output
+
+    def T_method_bin_vars(self, E_thresh, calos=None):
+        ''' returns corrected T-method bin variances
+        assuming a T-Method energy threshold of E_thresh
+        "calos" specifies which calos to include, defaults to all calos.
+        Otherwise, should be a list of calo_nums, e.g. [1,2,3,4]
+        '''
+
+        spec_2d, eps = self._calo_sum_and_average_eps(calos)
+
+        T_cut = self.energy_centers >= E_thresh
+
+        # build the variances time bin by time bin
+        T_variances = np.empty(spec_2d.shape[1])
+        for time_bin in range(T_variances.shape[0]):
+            e_spec = spec_2d[:, time_bin]
+
+            dNic_dNj = self._get_dNic_dNj(e_spec, eps)
+
+            T_variances[time_bin] = (
+                dNic_dNj[T_cut].sum(axis=0)**2 * e_spec).sum()
+
+        return T_variances
+
+    def T_method_unc_facs(self, E_thresh, calos=None):
+        ''' returns the T-Method uncertainty enhancement factors
+        for specified calos and E_thresh '''
+
+        cor_vars = self.T_method_bin_vars(E_thresh, calos)
+
+        if calos is None:
+            cor_spec = (self.array - self.pu_spectrum).sum(axis=0)
+        else:
+            calo_inds = np.array(calos) - 1
+            cor_spec = (
+                self.array - self.pu_spectrum)[calo_inds, :, :].sum(axis=0)
+
+        T_hist = cor_spec[self.energy_centers >= E_thresh, :].sum(axis=0)
+
+        denom = np.where(T_hist > 0, T_hist, 1)
+
+        return np.sqrt(cor_vars / denom)
+
+    def A_weighted_bin_vars(self, A_model, E_min, E_max, calos=None):
+        ''' returns pu corrected A-Weighted bin variances
+        assuming an A vs E curve of A_model and energies in [E_min, E_max)
+        "calos" param is the same as for the T-Method version
+        '''
+        spec_2d, eps = self._calo_sum_and_average_eps(calos)
+
+        A_s = self._get_A_array(A_model, E_min, E_max)
+
+        # build the variances time bin by time bin
+        A_variances = np.empty(spec_2d.shape[1])
+        for time_bin in range(A_variances.shape[0]):
+            e_spec = spec_2d[:, time_bin]
+
+            # the matrix whose rows we will sum over
+            sum_mat = A_s[:, None] * self._get_dNic_dNj(e_spec, eps)
+
+            A_variances[time_bin] = (
+                sum_mat.sum(axis=0)**2 * e_spec).sum()
+
+        return A_variances
+
+    def A_weighted_unc_facs(self, A_model, E_min, E_max, calos=None):
+        ''' returns the A-Weighted uncertainty enhancement factors
+        for specified calos, A_model, E_min, E_max '''
+
+        cor_vars = self.A_weighted_bin_vars(A_model, E_min, E_max, calos)
+
+        A_s = self._get_A_array(A_model, E_min, E_max)
+
+        if calos is None:
+            cor_spec = (self.array - self.pu_spectrum).sum(axis=0)
+        else:
+            calo_inds = np.array(calos) - 1
+            cor_spec = (
+                self.array - self.pu_spectrum)[calo_inds, :, :].sum(axis=0)
+
+        nominal_vars = (A_s[:, None]**2 * cor_spec).sum(axis=0)
+
+        denom = np.where(nominal_vars > 0, nominal_vars, 1)
+
+        return np.sqrt(cor_vars / denom)
+
+    def _get_A_array(self, A_model, E_min, E_max):
+        ''' Convert asymmetry versus E model, a TSpline3,
+        into a vector of weights to be applied in each energy bin '''
+        A_s = np.array([A_model.Eval(energy)
+                        for energy in self.energy_centers])
+
+        if E_min < A_model.GetXmin():
+            E_min = A_model.GetXmin()
+        if E_max > A_model.GetXmax():
+            E_max = A_model.GetXmax()
+
+        not_A_cut = np.logical_or(self.energy_centers < E_min,
+                                  self.energy_centers >= E_max)
+
+        A_s[not_A_cut] = 0
+
+        return A_s
+
     def __getitem__(self, index):
         '''get an individual calo spectrum by index,
         self[0] is the spectrum for calo 1'''
@@ -182,7 +306,7 @@ class CaloSpectra:
         '''build the delta_rho_pileup distribution for calo calo_num.
         if rho_guess is None, rho will be calo_spec(calo_num)
         otherwise, rho_guess will be the positron distribution.
-        This allows for multiple iterations of the corretion procedure, e.g.:
+        This allows for multiple iterations of the correction procedure, e.g.:
         drho_pu_1iter = spec.build_delta_rho_pu(calo_num=1)
         drho_pu_2iters = spec.build_delta_rho_pu(
             rho_guess=spec.calo_spec(1)-drho_pu_1iter)
@@ -538,6 +662,50 @@ class CaloSpectra:
         self._cor_variances = np.array(self.array)
         for calo_vars, factor in zip(self._cor_variances, correction_factors):
             calo_vars *= factor
+
+    @staticmethod
+    def _get_dNic_dNj(spec, eps):
+        ''' return the matrix dN_i^c / dN_j,
+        equation A.6 of A. Fienberg's thesis.
+        This quantity is required to get pileup uncertainty enhancement factors
+        for both T-Method and A-Weighted histograms.
+        spec is a 1d e-spec and eps is the pileup spectrum coefficient'''
+
+        # Kronecker delta
+        delta_ij = np.identity(spec.shape[0])
+
+        # build matrix N_(i-j-1)
+        Nimjm1 = np.empty_like(delta_ij)
+        for i_row in range(Nimjm1.shape[0]):
+            Nimjm1[i_row][:i_row] = spec[:i_row][::-1]
+            Nimjm1[i_row][i_row:] = 0
+
+        # evaluate and return dN_i^c / dN_j
+        return delta_ij \
+            + 2 * eps * (delta_ij * spec.sum() + spec[:, None] - Nimjm1)
+
+    def _calo_sum_and_average_eps(self, calos):
+        ''' calos is a list of calo nums, e.g. [1,2,3,4],
+        or None for all calos.
+        returns the (E,t) spectra summed over these calos
+        and the associated effective pileup coefficient
+        '''
+        if calos is None:
+            calos = list(range(1, self.array.shape[0] + 1))
+
+        spec_2d = np.zeros_like(self.array[0])
+        # effective eps(ilon) is effective pileup coefficient
+        effective_eps = 0
+        for calo_num in calos:
+            spec_2d += self.calo_spec(calo_num)
+            effective_eps += self.pu_coeffs[calo_num - 1][0]
+
+        # effective eps is the sum of the calo pu_coeffs
+        # divided by n_calos^2, because the pu_coeff scales
+        # inversely with the amount of data in the spectrum
+        effective_eps /= len(calos)**2
+
+        return spec_2d, effective_eps
 
 
 def main():
