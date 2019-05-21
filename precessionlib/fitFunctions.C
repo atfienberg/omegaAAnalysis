@@ -72,8 +72,16 @@ double cbo_model_elba(double w_cbo, double t, double* p) {
   }
 }
 
+// approximate is ok ;)
+constexpr double omega_c = 42.1153248017936;
+
+// get field-index from CBO frequency
+double n_of_omega_CBO(double omega_cbo) {
+  return (omega_cbo * (2 * omega_c - omega_cbo)) / pow(omega_c, 2);
+}
+
 // constexpr unsigned int n_full_fit_parameters = 27;
-constexpr unsigned int n_full_fit_parameters = 32;
+constexpr unsigned int n_full_fit_parameters = 33;
 double full_wiggle_fit(double* x, double* p) {
   const double t = x[0];
   const double N_0 = p[0];
@@ -91,7 +99,9 @@ double full_wiggle_fit(double* x, double* p) {
   const double tau_vw = p[10];
   const double A_vw = p[11];
   const double phi_vw = p[12];
-  const double w_vw = p[13];
+  // could be updated if we are fitting in
+  // "use field index" mode
+  double w_vw = p[13];
   const double K_loss = p[14];
 
   const double A_cboa = p[15];
@@ -100,7 +110,6 @@ double full_wiggle_fit(double* x, double* p) {
   const double phi_cbophi = p[18];
 
   const double N_loss = 1 - K_loss * cumuLoss(t);
-  const double N_vw = 1 + exp(-t / tau_vw) * (A_vw * cos(w_vw * t - phi_vw));
 
   // parameter 31 encodes which tracker frequency model to use
   // right now (0-1) means original model
@@ -120,11 +129,38 @@ double full_wiggle_fit(double* x, double* p) {
   const double A_2cbo = p[25];
   const double phi_2cbo = p[26];
 
+  // parameter 32 encodes whether we're fitting in "use field index"
+  // mode. if so, the changing CBO frequency is mapped to an n-value
+  // and then used to determing the VW and y frequencies, and then adjusted
+  // with "fudge" factors to account for imperfections of continuous quad
+  // approximations
+  const unsigned int use_field_index_flag = p[32];
+  // will be updated if we're in "use field index" mode
+  double field_index = 1;
+  // vertical waist oscillations
+  if (use_field_index_flag == 1) {
+    // in this case, p[13] is the VW "fudge factor"
+    // in units of percent
+    const double delta_vw = p[13];
+    field_index = n_of_omega_CBO(w_cbo);
+    w_vw = (1 + delta_vw / 100) * omega_c * (1 - 2 * sqrt(field_index));
+  }
+
+  const double N_vw = 1 + exp(-t / tau_vw) * (A_vw * cos(w_vw * t - phi_vw));
+
   // vertical betatron oscillations
   const double tau_y = p[27];
   const double A_y = p[28];
   const double phi_y = p[29];
-  const double w_y = p[30];
+
+  double w_y = p[30];
+  if (A_y != 0 && use_field_index_flag) {
+    // now p[30] is the y "fudge factor"
+    // same definition as for vw
+    const double delta_y = p[30];
+    w_y = (1 + delta_y / 100) * omega_c * sqrt(field_index);
+  }
+
   const double N_y =
       A_y != 0 ? 1 + exp(-t / tau_y) * (A_y * cos(w_y * t - phi_y)) : 1;
 

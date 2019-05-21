@@ -234,6 +234,20 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
     full_fit_tf1.SetNpx(10000)
     full_fit_tf1.SetLineColor(r.kRed)
 
+    # whether to switch to "use field index" mode
+    full_fit_tf1.SetParName(32, 'Use Field Index Mode')
+    use_field_index = config.get('field index mode', False)
+    full_fit_tf1.FixParameter(32, 1.0 if use_field_index else 0.0)
+
+    if use_field_index:
+        # switch to field index mode
+        full_fit_tf1.SetParName(13, '#delta_{vw}')
+        full_fit_tf1.SetParameter(13, 0)
+
+        full_fit_tf1.SetParName(30, '#delta_{y}')
+        if include_y_osc:
+            full_fit_tf1.SetParameter(13, 0)
+
     for [par_name, val] in config.get('fit_par_guesses', []):
         par_num = get_par_index(full_fit_tf1, par_name)
         if not is_free_param(full_fit_tf1, par_num):
