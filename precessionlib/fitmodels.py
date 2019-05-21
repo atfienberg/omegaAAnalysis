@@ -208,24 +208,23 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
 
     # now set vertical betatron parameters.
     # These default to being effectively excluded from the fit
-    try:
-        include_y_osc = config['include_y_osc']
-    except KeyError:
-        include_y_osc = False
+    include_y_osc = config.get('include_y_osc', False)
+
+    # vertical betatron oscillations
+    full_fit_tf1.SetParName(27, '#tau_{y}')
+    full_fit_tf1.SetParName(28, 'A_{y}')
+    full_fit_tf1.SetParName(29, '#phi_{y}')
+    full_fit_tf1.SetParName(30, '#omega_{y}')
 
     if include_y_osc:
         cbo_freq = full_fit_tf1.GetParameter(9) / 2 / math.pi
         y_freq = f_c * math.sqrt(n_of_CBO_freq(cbo_freq))
         w_y = 2 * math.pi * y_freq
 
-        full_fit_tf1.SetParName(27, '#tau_{y}')
         full_fit_tf1.SetParameter(
             27, cbo_freq / y_freq * full_fit_tf1.GetParameter(6))
-        full_fit_tf1.SetParName(28, 'A_{y}')
         full_fit_tf1.SetParameter(28, 0.0001)
-        full_fit_tf1.SetParName(29, '#phi_{y}')
         full_fit_tf1.SetParameter(29, 0)
-        full_fit_tf1.SetParName(30, '#omega_{y}')
         full_fit_tf1.SetParameter(30, w_y)
 
     else:
@@ -237,17 +236,19 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
 
     for [par_name, val] in config.get('fit_par_guesses', []):
         par_num = get_par_index(full_fit_tf1, par_name)
+        if not is_free_param(full_fit_tf1, par_num):
+            full_fit_tf1.ReleaseParameter(par_num)
         full_fit_tf1.SetParameter(par_num, val)
-
-    pars_to_fix = config.get('fit_par_fixes', [])
-    for [par_name, val] in pars_to_fix:
-        par_num = get_par_index(full_fit_tf1, par_name)
-        full_fit_tf1.FixParameter(par_num, val)
 
     pars_to_limit = config.get('fit_par_limits', [])
     for [par_name, low, high] in pars_to_limit:
         par_num = get_par_index(full_fit_tf1, par_name)
         full_fit_tf1.SetParLimits(par_num, low, high)
+
+    pars_to_fix = config.get('fit_par_fixes', [])
+    for [par_name, val] in pars_to_fix:
+        par_num = get_par_index(full_fit_tf1, par_name)
+        full_fit_tf1.FixParameter(par_num, val)
 
     return full_fit_tf1
 
@@ -282,15 +283,6 @@ def apply_fit_conf(func, config):
 
         func.SetParameter(par_num, val)
 
-    pars_to_fix = config.get('fit_par_fixes', [])
-    for [par_name, val] in pars_to_fix:
-        try:
-            par_num = get_par_index(func, par_name)
-        except ValueError:
-            continue
-
-        func.FixParameter(par_num, val)
-
     pars_to_limit = config.get('fit_par_limits', [])
     for [par_name, low, high] in pars_to_limit:
         try:
@@ -299,6 +291,15 @@ def apply_fit_conf(func, config):
             continue
 
         func.SetParLimits(par_num, low, high)
+
+    pars_to_fix = config.get('fit_par_fixes', [])
+    for [par_name, val] in pars_to_fix:
+        try:
+            par_num = get_par_index(func, par_name)
+        except ValueError:
+            continue
+
+        func.FixParameter(par_num, val)
 
 
 def prepare_loss_hist(config, T_meth_hist, tau=64.44):

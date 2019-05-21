@@ -176,8 +176,11 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
                                 best_T_hist.GetBinContent(
                                     best_T_hist.FindBin(30)) * 1.6)
     bin_width = best_T_hist.GetBinWidth(1)
+
+    calo_range = config['calo_range']
+    calo_str = f'calos {calo_range[0]} to {calo_range[1]}'
     best_T_hist.SetTitle(
-        f'T-Method, all calos, {best_thresh/1000:.2f} GeV threshold; ' +
+        f'T-Method, {calo_str}, {best_thresh/1000:.2f} GeV threshold; ' +
         f'time [#mus]; N / {bin_width:.3f} #mus')
 
     print('five parameter fit to T Method histogram...')

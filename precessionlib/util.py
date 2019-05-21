@@ -4,6 +4,7 @@
 # September 2018
 
 import ROOT as r
+import numpy as np
 import math
 
 # approximate omega_a period
@@ -490,3 +491,17 @@ def make_wrapped_wiggle_plot(hist, fit, title,
     txt.Draw()
 
     return c, (hists, funcs, txt)
+
+
+def hist1d_to_array(hist):
+    ''' converts 1d histogram to a numpy array
+    the array will be three columns:
+    the bin centers, the bin contents, and the bin errors '''
+    out = np.empty((hist.GetNbinsX(), 3))
+
+    for i, bin_num in enumerate(range(1, hist.GetNbinsX() + 1)):
+        out[i][0] = hist.GetBinCenter(i)
+        out[i][1] = hist.GetBinContent(i)
+        out[i][2] = hist.GetBinError(i)
+
+    return out
