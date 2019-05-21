@@ -236,7 +236,7 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
 
     # whether to switch to "use field index" mode
     full_fit_tf1.SetParName(32, 'Use Field Index Mode')
-    use_field_index = config.get('field index mode', False)
+    use_field_index = config.get('field_index_mode', False)
     full_fit_tf1.FixParameter(32, 1.0 if use_field_index else 0.0)
 
     if use_field_index:
@@ -323,6 +323,13 @@ def prepare_loss_hist(config, T_meth_hist, tau=64.44):
         config['loss_hist_name'], config['loss_file_name'])
     lost_muon_rate_2d.SetTitle(
         'triple coincidence counts; time [#mu s]; N [a.u.]')
+
+    # # for guaranteeing that nothing matters before t=t_s
+    # for x_bin in range(1, lost_muon_rate_2d.GetNbinsX() + 1):
+    #     if lost_muon_rate_2d.GetXaxis().GetBinCenter(x_bin) > 27:
+    #         continue
+    #     for y_bin in range(1, lost_muon_rate_2d.GetNbinsY() + 1):
+    #         lost_muon_rate_2d.SetBinContent(x_bin, y_bin, 0)
 
     # create lost muon histogram with bin contents weighted by exp(t/tau)
     lost_muon_prob_2d = lost_muon_rate_2d.Clone()
