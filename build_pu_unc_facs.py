@@ -15,7 +15,9 @@ def get_E_thresh(root_f):
     name = T_hist.GetTitle()
     words = name.split()
 
-    return 1000 * float(words[3])
+    energy_index = words.index('GeV') - 1
+
+    return 1000 * float(words[energy_index])
 
 
 def get_A_model(root_f):
