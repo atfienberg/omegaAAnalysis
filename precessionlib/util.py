@@ -505,3 +505,69 @@ def hist1d_to_array(hist):
         out[i][2] = hist.GetBinError(i)
 
     return out
+
+
+def get_start_time_scan(root_file, par_num, shift_curves=False, method='A'):
+    ''' convert a start time scan in a ROOT file into a python dict
+    containing numpy arrays '''
+    if method == 'T':
+        scan_c = root_file.Get(
+            f'T-Method/startTimeScan/TMethodPar{par_num}StartScan')
+    elif method == 'A':
+        scan_c = root_file.Get(
+            f'A-Weighted/startTimeScan/AWeighted{par_num}StartScan')
+    else:
+        raise ValueError(f'"{method}" is an invalid analysis method!')
+
+    prim_list = scan_c.GetListOfPrimitives()
+    scan_g = prim_list.FindObject('parScan')
+
+    val_dict = {}
+    for g_name in ['parScan', 'lowDrift', 'highDrift', 'lowErr', 'highErr']:
+        val_dict[g_name] = np.array(
+            [float(y) for y in prim_list.FindObject(g_name).GetY()])
+
+    # if requested, shift curves so starting point is at 0
+    if shift_curves:
+        for g_name in val_dict:
+            val_dict[g_name] -= val_dict[g_name][0]
+
+    val_dict['times'] = np.array([float(x) for x in scan_g.GetX()])
+    val_dict['parName'] = scan_g.GetYaxis().GetTitle()
+
+    return val_dict
+
+
+def combine_start_time_scans(scan_list):
+    '''combine shifted start time scans into an average start time scan'''
+
+    # take times from first scan
+    times = scan_list[0]['times']
+
+    par_vals = np.vstack(
+        [np.interp(times, scan['times'], scan['parScan'])
+         for scan in scan_list])
+
+    drift_errs = np.vstack(
+        [np.interp(times, scan['times'], scan['highDrift'])
+         for scan in scan_list])
+
+    # calculate the average parameter shift over the input scans
+    weights = 1 / np.where(drift_errs > 0, drift_errs**2, 1)
+    weight_sum = np.sum(weights, axis=0)
+    average_drift = (par_vals * weights).sum(axis=0) / weight_sum
+
+    # calculate adjusted allowed drift bands
+    allowed_drift = np.sqrt(1 / weight_sum)
+    # set the first allowed drift to 0 manually
+    allowed_drift[0] = 0
+
+    val_dict = {}
+
+    val_dict['parName'] = scan_list[0]['parName']
+    val_dict['times'] = times
+    val_dict['parScan'] = average_drift
+    val_dict['lowDrift'] = -1 * allowed_drift
+    val_dict['highDrift'] = allowed_drift
+
+    return val_dict
