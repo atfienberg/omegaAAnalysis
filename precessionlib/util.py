@@ -507,7 +507,7 @@ def hist1d_to_array(hist):
     return out
 
 
-def get_start_time_scan(root_file, par_num, shift_curves=False, method='A'):
+def get_start_time_scan(root_file, par_num, shift_curves=False, method='T'):
     ''' convert a start time scan in a ROOT file into a python dict
     containing numpy arrays '''
     if method == 'T':
@@ -515,7 +515,7 @@ def get_start_time_scan(root_file, par_num, shift_curves=False, method='A'):
             f'T-Method/startTimeScan/TMethodPar{par_num}StartScan')
     elif method == 'A':
         scan_c = root_file.Get(
-            f'A-Weighted/startTimeScan/AWeighted{par_num}StartScan')
+            f'A-Weighted/startTimeScan/AWeightPar{par_num}StartScan')
     else:
         raise ValueError(f'"{method}" is an invalid analysis method!')
 

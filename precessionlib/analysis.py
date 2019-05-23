@@ -466,7 +466,7 @@ def calculate_E_bin_ranges(master_3d, config):
 
 def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
                         thresh_bin, model_fit, scales, config,
-                        max_thresh_bin=-1):
+                        pu_unc_facs=None, max_thresh_bin=-1):
     ''' vary the pileup multiplier and fit
 
     corrected_2d: pileup corrected 2d histogram
@@ -504,11 +504,20 @@ def T_meth_pu_mult_scan(corrected_2d, uncorrected_2d,
         fit_hist.Add(pu_pert, -1 * scale_factor)
 
         fit_hist.ResetStats()
-        # for now, use errors from the corrected T hist at all pts in scan
-        # I don't currently have a good way to scale the extra error factor
-        # along with the scale of the pu-correction
+
         for i_bin in range(1, corrected_T_hist.GetNbinsX() + 1):
-            fit_hist.SetBinError(i_bin, corrected_T_hist.GetBinError(i_bin))
+            # if no pu_unc factors, use corrected bin errors
+            # else use the bin_error and a scaled version of the pu_unc_factors
+            if pu_unc_facs is None:
+                fit_hist.SetBinError(i_bin,
+                                     corrected_T_hist.GetBinError(i_bin))
+            else:
+                scaled_unc_fac = scale_factor * \
+                    (pu_unc_facs[i_bin - 1] - 1) + 1
+
+                new_err = fit_hist.GetBinError(i_bin) * scaled_unc_fac
+
+                fit_hist.SetBinError(i_bin, new_err)
 
         fit_hist.Fit(fit, config['fit_options'] + '0', ' ',
                      config['fit_start'], config['extended_fit_end'])
@@ -695,6 +704,7 @@ def build_a_weight_hist(spec_2d, a_vs_e_spline, name,
 def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
                           a_vs_e_spline,
                           model_fit, scales, config,
+                          pu_unc_facs=None,
                           min_e=1000, max_e=3000):
     ''' vary the pileup multiplier and fit, for A_Weighted analysis
 
@@ -736,11 +746,19 @@ def A_weight_pu_mult_scan(corrected_2d, uncorrected_2d,
                                        min_e=min_e,
                                        max_e=max_e)
 
-        # for now, use errors from the corrected A hist at all pts in scan
-        # I don't currently have a good way to scale the extra error factor
-        # along with the scale of the pu-correction
         for i_bin in range(1, corrected_a_hist.GetNbinsX() + 1):
-            scaled_a.SetBinError(i_bin, corrected_a_hist.GetBinError(i_bin))
+            # if no pu_unc factors, use corrected bin errors
+            # else use the bin_error * scale_factor * uncertainty factor
+            if pu_unc_facs is None:
+                scaled_a.SetBinError(i_bin,
+                                     corrected_a_hist.GetBinError(i_bin))
+            else:
+                scaled_unc_fac = scale_factor * \
+                    (pu_unc_facs[i_bin - 1] - 1) + 1
+
+                new_err = scaled_a.GetBinError(i_bin) * scaled_unc_fac
+
+                scaled_a.SetBinError(i_bin, new_err)
 
         scaled_a.Fit(fit, config['fit_options'] + '0', ' ',
                      config['fit_start'], config['extended_fit_end'])
@@ -1090,9 +1108,11 @@ def run_analysis(config):
     pu_scan_fit.SetParLimits(6, 100, 400)
 
     scale_factors = [i / 10 for i in range(15)]
+    unc_facs = T_meth_unc_facs if len(T_meth_unc_facs) else None
     pu_scale_fits = T_meth_pu_mult_scan(all_calo_2d, uncorrected_2d,
                                         thresh, pu_scan_fit,
-                                        scale_factors, config)
+                                        scale_factors, config,
+                                        pu_unc_facs=unc_facs)
     t_pu_chi2_g, t_pu_par_gs = make_pu_scan_graphs(
         scale_factors, pu_scale_fits)
     c1 = plot_pu_sweep_R(t_pu_par_gs, 'T-Method')
@@ -1212,9 +1232,11 @@ def run_analysis(config):
     print('A-Weighted pileup multiplier scan...')
 
     a_pu_fit = clone_full_fit_tf1(a_weight_fit, 'a_pu_fit')
+    unc_facs = A_weight_unc_facs if len(A_weight_unc_facs) else None
     a_pu_scan_fits = A_weight_pu_mult_scan(all_calo_2d, uncorrected_2d,
                                            a_vs_e_spline, a_pu_fit,
-                                           scale_factors, config)
+                                           scale_factors, config,
+                                           pu_unc_facs=unc_facs)
 
     a_pu_chi2_g, a_pu_par_gs = make_pu_scan_graphs(
         scale_factors, a_pu_scan_fits)
