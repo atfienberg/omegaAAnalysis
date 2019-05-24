@@ -306,6 +306,17 @@ class ParamTimeScanResult():
                          par_val)
 
         error = func.GetParError(self._par_num)
+        # if error has decreased since last point,
+        # something must have gone wrong with fit error estimation.
+        # in that case, take last error instead of this one
+        try:
+            last_err = self._lasterr
+        except AttributeError:
+            last_err = error
+        if error < last_err:
+            error = last_err
+        self._lasterr = error
+
         self._low_err.SetPoint(point_num, time, par_val - error)
         self._high_err.SetPoint(point_num, time, par_val + error)
 
