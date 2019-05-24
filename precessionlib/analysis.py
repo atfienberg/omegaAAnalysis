@@ -271,9 +271,8 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
                              ' in the T-Method histogram!')
 
         for i_bin in range(1, best_T_hist.GetNbinsX() + 1):
-            center = best_T_hist.GetBinCenter(i_bin)
-            new_err = np.sqrt(full_fit_tf1.Eval(center)) \
-                * pu_unc_factors[i_bin - 1]
+            old_err = np.sqrt(best_T_hist.GetBinContent(i_bin))
+            new_err = old_err * pu_unc_factors[i_bin - 1]
 
             best_T_hist.SetBinError(i_bin, new_err)
 
