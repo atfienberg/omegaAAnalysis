@@ -1177,14 +1177,18 @@ def run_analysis(config):
     # A-Weighted fit sometimes has issues with VW, set some parameter limits
     # (if not already limited)
     if is_free_param(a_weight_fit, 10):
+        # limit vw lifetime
         a_weight_fit.SetParLimits(10,
                                   0.8 * a_weight_fit.GetParameter(10),
                                   1.2 * a_weight_fit.GetParameter(10))
 
     if is_free_param(a_weight_fit, 13):
+        # limit VW frequency parameter
+        freq_par_err = full_fit.GetParError(13)
+        freq_par = full_fit.GetParameter(13)
         a_weight_fit.SetParLimits(13,
-                                  0.975 * a_weight_fit.GetParameter(13),
-                                  1.025 * a_weight_fit.GetParameter(13))
+                                  freq_par - 5 * freq_par_err,
+                                  freq_par + 5 * freq_par_err)
 
     a_weight_fit.SetParameter(0,
                               a_weight_hist.GetBinContent(
