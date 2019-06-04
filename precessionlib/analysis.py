@@ -308,6 +308,10 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
     after that, it uses the results from the previous calo
     '''
 
+    model_fit = configure_model_fit(model_fit,
+                                    'TMethCaloModelFit',
+                                    config['calo_sweep'])
+
     print('T Method calo sweep...')
     results = []
     for i in range(1, 25):
@@ -342,6 +346,10 @@ def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config,
     uses model_fit to determine guesses for first calo
     after that, it uses the results from the previous calo
     '''
+
+    model_fit = configure_model_fit(model_fit,
+                                    'AWeightCaloModelFit',
+                                    config['calo_sweep'])
 
     print('A-Weighted calo sweep...')
     results = []
@@ -390,6 +398,10 @@ def energy_sweep(master_3d, model_fit, config):
     each histogram has the same energy width,
     and all histograms span the range from min_e to max_e
     '''
+
+    model_fit = configure_model_fit(model_fit,
+                                    'energySweepModelFit',
+                                    config['E_binned_ana'])
 
     print('energy binned sweep...')
 
@@ -1125,39 +1137,17 @@ def run_analysis(config):
 
     print('Per calo analysis...')
 
-    per_calo_fit = clone_full_fit_tf1(full_fit, 'per_calo_fit')
-
-    if config['free_2w_cbo']:
-        # free 2*omega_cbo params for per calo
-        for par_num in range(24, 27):
-            per_calo_fit.ReleaseParameter(par_num)
-        per_calo_fit.SetParLimits(24, 30, 200)
-
-    # limit the cbo lifetime param
-    per_calo_fit.SetParLimits(6, 50, 400)
-
-    # fix vw parameters for the single calo fit
-    for par_num in [10, 13]:
-        per_calo_fit.FixParameter(par_num,
-                                  per_calo_fit.GetParameter(par_num))
-
     # T-Method fits per calo
     calo_sweep_res = T_method_calo_sweep(
-        master_3d, per_calo_fit, thresh, config)
+        master_3d, full_fit, thresh, config)
     calo_chi2_g, calo_sweep_par_gs = make_calo_sweep_graphs(calo_sweep_res)
     print_calo_sweep_res(calo_sweep_res, calo_chi2_g,
                          calo_sweep_par_gs, pdf_dir, 'TFit')
 
     print('energy binned analysis...')
 
-    e_binned_fit = clone_full_fit_tf1(full_fit, 'e_binned_fit')
-
-    # fix a number of parameters for the energy binned fits
-    for par_num in [6, 9, 10, 13] + list(range(19, 27)):
-        e_binned_fit.FixParameter(par_num, e_binned_fit.GetParameter(par_num))
-
     # do the energy bin sweeps
-    e_sweep_res = energy_sweep(master_3d, e_binned_fit, config)
+    e_sweep_res = energy_sweep(master_3d, full_fit, config)
     e_sweep_chi2_g, e_sweep_par_gs = make_E_sweep_graphs(e_sweep_res)
     print_energy_sweep_res(e_sweep_res, e_sweep_chi2_g,
                            e_sweep_par_gs, pdf_dir)
@@ -1250,25 +1240,9 @@ def run_analysis(config):
 
     print('A-Weighted calo scan')
 
-    per_calo_a_fit = clone_full_fit_tf1(a_weight_fit, 'per_calo_a_fit')
-
-    # free 2*omega_cbo params for per calo
-    if config['free_2w_cbo']:
-        for par_num in range(24, 27):
-            per_calo_a_fit.ReleaseParameter(par_num)
-        per_calo_a_fit.SetParLimits(24, 30, 200)
-
-    # limit the cbo lifetime params
-    per_calo_a_fit.SetParLimits(6, 50, 400)
-
-    # fix vw parameters for the single calo fit
-    for par_num in [10, 13]:
-        per_calo_a_fit.FixParameter(par_num,
-                                    per_calo_a_fit.GetParameter(par_num))
-
     # A-Weighted fits per calo
     calo_sweep_a_res = A_weighted_calo_sweep(
-        master_3d, per_calo_a_fit, a_vs_e_spline, config)
+        master_3d, a_weight_fit, a_vs_e_spline, config)
     calo_a_chi2_g, calo_sweep_a_par_gs = make_calo_sweep_graphs(
         calo_sweep_a_res)
     print_calo_sweep_res(calo_sweep_a_res, calo_a_chi2_g,

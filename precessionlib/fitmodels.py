@@ -8,6 +8,7 @@
 import ROOT as r
 from .util import *
 import os
+import copy
 
 # load some root functions and variables into the interpreter
 file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -248,21 +249,7 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
         if include_y_osc:
             full_fit_tf1.SetParameter(13, 0)
 
-    for [par_name, val] in config.get('fit_par_guesses', []):
-        par_num = get_par_index(full_fit_tf1, par_name)
-        if not is_free_param(full_fit_tf1, par_num):
-            full_fit_tf1.ReleaseParameter(par_num)
-        full_fit_tf1.SetParameter(par_num, val)
-
-    pars_to_limit = config.get('fit_par_limits', [])
-    for [par_name, low, high] in pars_to_limit:
-        par_num = get_par_index(full_fit_tf1, par_name)
-        full_fit_tf1.SetParLimits(par_num, low, high)
-
-    pars_to_fix = config.get('fit_par_fixes', [])
-    for [par_name, val] in pars_to_fix:
-        par_num = get_par_index(full_fit_tf1, par_name)
-        full_fit_tf1.FixParameter(par_num, val)
+    apply_fit_conf_full(full_fit_tf1, config)
 
     return full_fit_tf1
 
@@ -314,6 +301,48 @@ def apply_fit_conf(func, config):
             continue
 
         func.FixParameter(par_num, val)
+
+
+def apply_fit_conf_full(func, config):
+    '''apply fit conf to a function that a function that is a full_fit_tf1.
+    just like apply_fit_conf, but throws an error if the par_name in the config
+    does not exist'''
+    for [par_name, val] in config.get('fit_par_guesses', []):
+        par_num = get_par_index(func, par_name)
+        if not is_free_param(func, par_num):
+            func.ReleaseParameter(par_num)
+        func.SetParameter(par_num, val)
+
+    pars_to_limit = config.get('fit_par_limits', [])
+    for [par_name, low, high] in pars_to_limit:
+        par_num = get_par_index(func, par_name)
+        func.SetParLimits(par_num, low, high)
+
+    pars_to_fix = config.get('fit_par_fixes', [])
+    for [par_name, val] in pars_to_fix:
+        par_num = get_par_index(func, par_name)
+        func.FixParameter(par_num, val)
+
+
+def configure_model_fit(model_fit, model_name, conf):
+    ''' clone the model_fit and then apply parameter configuration
+    from the dictionary conf'''
+    model_fit = clone_full_fit_tf1(model_fit, model_name)
+
+    conf_copy = copy.deepcopy(conf)
+
+    # for pars_to_fix without a value,
+    # set the value_to_fix to be the value from the model fit
+    for i, val in enumerate(conf_copy['fit_par_fixes']):
+        if isinstance(val, str):
+            par_name = val
+            par_index = get_par_index(model_fit, par_name)
+            par_val = model_fit.GetParameter(par_index)
+            conf_copy['fit_par_fixes'][i] = [par_name, par_val]
+
+    apply_fit_conf_full(model_fit, conf_copy)
+
+    return model_fit
 
 
 def prepare_loss_hist(config, T_meth_hist, tau=64.44):
