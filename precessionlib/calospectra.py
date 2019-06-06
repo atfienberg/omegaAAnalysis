@@ -369,6 +369,20 @@ class CaloSpectra:
             return sum(components), norm_factors, cov
 
     @staticmethod
+    def gain_perturb(counts, energies, gain_pert):
+        '''returns a gain perturbed version of the energy spectrum
+        defined by "counts" and "energies"
+        only calculates the leading-order effect of the gain perturbation
+
+        gain_pert is the size of the gain perturbation, e.g. -0.05
+        for a 5% gain reduction
+        '''
+
+        derivs = np.zeros_like(counts)
+        derivs[:-1] = (counts[1:] - counts[:-1]) / (energies[1] - energies[0])
+        return counts + gain_pert * (counts + energies[:, None] * derivs)
+
+    @staticmethod
     def _build_double_pu_specs(rho):
         '''builds the non-normalized double pileup contributions
         returns: pos_component, neg_component
@@ -411,7 +425,7 @@ class CaloSpectra:
         # correct for negative double pileup that was part of a triple
         trip_term_three = 3 * rho * np.power(rho_ints, 2)
 
-        return trip_sum, trip_term_two, trip_term_three
+        return [trip_sum, trip_term_two, trip_term_three]
 
     def _fit_pu_coeffs(self, calo_num, pu_comps,
                        pu_energy_min, pu_energy_max, pu_time_min,
@@ -466,7 +480,9 @@ class CaloSpectra:
             components *= 1 / errors[:, None]
             perturbed *= 1 / errors
 
-            coeffs, _, _, _ = np.linalg.lstsq(components, perturbed)
+            coeffs, _, _, _ = np.linalg.lstsq(components,
+                                              perturbed,
+                                              rcond=None)
 
             covariance = np.linalg.inv(components.T @ components)
 

@@ -128,7 +128,8 @@ def fit_slice(master_3d, name, model_fit,
         model_fit.SetParameter(2, a_guess)
 
     resids, fft = fit_and_fft(
-        hist, model_fit, name, fit_options, fit_range[0], fit_range[1])
+        hist, model_fit, name, fit_options, fit_range[0], fit_range[1],
+        double_fit=True)
 
     master_3d.GetXaxis().SetRange(1, master_3d.GetNbinsX())
     master_3d.GetYaxis().SetRange(1, master_3d.GetNbinsY())
@@ -314,7 +315,7 @@ def T_method_calo_sweep(master_3d, model_fit, thresh_bin, config):
 
     print('T Method calo sweep...')
     results = []
-    for i in range(1, 25):
+    for i in range(1, master_3d.GetNbinsZ() + 1):
         model_fit = clone_full_fit_tf1(model_fit, f'Calo{i}TFit')
 
         print(f'calo {i}')
@@ -353,7 +354,7 @@ def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config,
 
     print('A-Weighted calo sweep...')
     results = []
-    for i in range(1, 25):
+    for i in range(1, master_3d.GetNbinsZ() + 1):
         model_fit = clone_full_fit_tf1(model_fit, f'Calo{i}AWeightFit')
 
         print(f'calo {i}')
@@ -377,7 +378,9 @@ def A_weighted_calo_sweep(master_3d, model_fit, a_vs_e_spline, config,
 
         resids, fft = fit_and_fft(hist, model_fit, hist.GetName(),
                                   config['fit_options'],
-                                  config['fit_start'], config['fit_end'])
+                                  config['fit_start'],
+                                  config['fit_end'],
+                                  double_fit=True)
 
         fft.SetTitle(f'calo {i} A-Weighted')
 
@@ -1252,11 +1255,10 @@ def run_analysis(config):
 
         print('T-Method start time scan:')
 
-        start_time_fit = clone_full_fit_tf1(full_fit, 'start_time_fit')
         start_time_conf = config['start_time_scan']
-        for par_num in start_time_conf['params_to_fix']:
-            start_time_fit.FixParameter(par_num,
-                                        start_time_fit.GetParameter(par_num))
+        start_time_fit = configure_model_fit(full_fit,
+                                             'start_time_fit',
+                                             start_time_conf)
 
         t_scan_hist = T_hist.Clone()
         t_scan_hist.SetName('t_scan_hist')
@@ -1280,11 +1282,8 @@ def run_analysis(config):
 
         print('A-Weighted start time scan:')
 
-        a_start_time_fit = clone_full_fit_tf1(a_weight_fit, 'a_start_time_fit')
-        for par_num in start_time_conf['params_to_fix']:
-            a_start_time_fit.FixParameter(par_num,
-                                          a_start_time_fit.GetParameter(
-                                              par_num))
+        a_start_time_fit = configure_model_fit(
+            a_weight_fit, 'a_start_time_fit', start_time_conf)
 
         a_scan_hist = a_weight_hist.Clone()
         a_scan_hist.SetName('a_scan_hist')
