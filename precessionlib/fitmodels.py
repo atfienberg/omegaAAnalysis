@@ -273,6 +273,39 @@ def clone_full_fit_tf1(full_fit, name):
     return new_fit
 
 
+def fit_pars_to_minimizer(full_fit):
+    ''' copy the parameters from a full fit TF1
+    into the global minimizer object '''
+    r.buildMinimizer()
+    minim = r.gROOT.GetGlobal('minimizer')
+
+    for par_num in range(full_fit.GetNpar()):
+        par_name = full_fit.GetParName(par_num)
+        if is_free_param(full_fit, par_num):
+            old_val = full_fit.GetParameter(par_num)
+            par_err = full_fit.GetParError(par_num)
+
+            min_val, max_val = r.Double(), r.Double()
+            full_fit.GetParLimits(par_num, min_val, max_val)
+            if float(min_val) != (max_val):
+                minim.SetLimitedVariable(par_num,
+                                         par_name,
+                                         old_val,
+                                         3 * par_err,
+                                         min_val, max_val)
+            else:
+                minim.SetVariable(par_num,
+                                  par_name,
+                                  old_val,
+                                  3 * par_err)
+        else:
+            minim.SetVariable(par_num,
+                              par_name,
+                              full_fit.GetParameter(par_num),
+                              0)
+            minim.FixVariable(par_num)
+
+
 def apply_fit_conf(func, config):
     '''apply full fit conf to a function that is not the full_fit_tf1,
     e.g. the CBO TF1 or vw TF1'''
