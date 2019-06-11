@@ -7,6 +7,9 @@
 
 #include "TH1.h"
 #include "TF1.h"
+#include "Math/Functor.h"
+#include "Math/Minimizer.h"
+#include "Math/Factory.h"
 
 // the histogram used for including the muon loss term
 TH1D* cumuLossHist = nullptr;
@@ -41,7 +44,7 @@ double cboEnvelope(double t, double param) {
 // https://muon.npl.washington.edu/elog/g2/Tracking+Analysis/122
 // w_cbo is the base cbo frequency, t is the time,
 // and p is the param vector
-double cbo_model_original(double w_cbo, double t, double* p) {
+double cbo_model_original(double w_cbo, double t, const double* p) {
   const double dw = p[0] / 100 / 1000;
   const double cbo_exp_a = p[1] / 100;
   const double cbo_exp_b = p[2] / 100;
@@ -54,7 +57,7 @@ double cbo_model_original(double w_cbo, double t, double* p) {
 
 // second model, provided before the elba meeting
 // so far I have only received this via email
-double cbo_model_elba(double w_cbo, double t, double* p) {
+double cbo_model_elba(double w_cbo, double t, const double* p) {
   // p[0] unused in this model
   const double cbo_exp_a = p[1];
   const double cbo_exp_b = p[2];
@@ -82,7 +85,7 @@ double n_of_omega_CBO(double omega_cbo) {
 
 // constexpr unsigned int n_full_fit_parameters = 27;
 constexpr unsigned int n_full_fit_parameters = 33;
-double full_wiggle_fit(double* x, double* p) {
+double full_wiggle_fit(const double* x, const double* p) {
   const double t = x[0];
   const double N_0 = p[0];
   const double tau = p[1];
@@ -183,4 +186,68 @@ double full_wiggle_fit(double* x, double* p) {
 
 void createFullFitTF1(const char* tf1Name) {
   new TF1(tf1Name, full_wiggle_fit, 0, 700, n_full_fit_parameters);
+}
+
+//
+// Some functions to facilitate using a Root::Math::Minimizer
+//
+
+class FullFitFunction {
+ public:
+  FullFitFunction() : histToFit(nullptr), tStart(0), tEnd(0) {}
+
+  double chi2Function(const double* p) {
+    unsigned int startBin = histToFit->FindBin(tStart);
+    unsigned int endBin = histToFit->FindBin(tEnd);
+
+    double chi2 = 0;
+    for (unsigned int i = startBin; i < endBin; ++i) {
+      double t[1] = {histToFit->GetBinCenter(i)};
+      double funcVal = full_wiggle_fit(t, p);
+      double histVal = histToFit->GetBinContent(i);
+      double histVar = pow(histToFit->GetBinError(i), 2);
+
+      chi2 += pow(histVal - funcVal, 2) / histVar;
+    }
+
+    return chi2;
+  }
+
+  void setFitStart(double tStartIn) { tStart = tStartIn; }
+  void setFitEnd(double tEndIn) { tEnd = tEndIn; }
+  void setHistToFit(TH1D* histToFitIn) { histToFit = histToFitIn; }
+  void setHistToFit(char* histName) {
+    histToFit = (TH1D*)gROOT->FindObject(histName);
+  }
+
+  unsigned int getNIncludedBins() const {
+    unsigned int startBin = histToFit->FindBin(tStart);
+    unsigned int endBin = histToFit->FindBin(tEnd);
+
+    unsigned int nBins = 0;
+    for (unsigned int i = startBin; i <= endBin; ++i) {
+      nBins += 1;
+    }
+
+    return nBins;
+  }
+
+ private:
+  TH1D* histToFit;
+  double tStart;
+  double tEnd;
+};
+
+FullFitFunction* fitFunc = nullptr;
+ROOT::Math::Functor* functor = nullptr;
+ROOT::Math::Minimizer* minimizer = nullptr;
+void buildMinimizer(const char* minimizerType = "Minuit2",
+                    const char* algoType = "Migrad") {
+  if (fitFunc == nullptr) {
+    fitFunc = new FullFitFunction;
+    functor = new ROOT::Math::Functor(fitFunc, &FullFitFunction::chi2Function,
+                                      n_full_fit_parameters);
+    minimizer = ROOT::Math::Factory::CreateMinimizer(minimizerType, algoType);
+    minimizer->SetFunction(*functor);
+  }
 }

@@ -1,6 +1,6 @@
 # python versions of omega_a fit functions
 #
-# (and also some related/assocaited things)
+# (and also some related/associated things)
 #
 # Aaron Fienberg
 # September 2018
