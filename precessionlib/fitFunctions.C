@@ -201,7 +201,7 @@ class FullFitFunction {
     unsigned int endBin = histToFit->FindBin(tEnd);
 
     double chi2 = 0;
-    for (unsigned int i = startBin; i < endBin; ++i) {
+    for (unsigned int i = startBin; i <= endBin; ++i) {
       double t[1] = {histToFit->GetBinCenter(i)};
       double funcVal = full_wiggle_fit(t, p);
       double histVal = histToFit->GetBinContent(i);
