@@ -194,23 +194,36 @@ void createFullFitTF1(const char* tf1Name) {
 
 class FullFitFunction {
  public:
-  FullFitFunction() : histToFit(nullptr), tStart(0), tEnd(0) {}
+  FullFitFunction()
+      : histToFit(nullptr), tStart(0), tEnd(0), likelihoodMode(false) {}
 
   double chi2Function(const double* p) {
     unsigned int startBin = histToFit->FindBin(tStart);
     unsigned int endBin = histToFit->FindBin(tEnd);
 
-    double chi2 = 0;
+    double val = 0;
+
     for (unsigned int i = startBin; i <= endBin; ++i) {
       double t[1] = {histToFit->GetBinCenter(i)};
       double funcVal = full_wiggle_fit(t, p);
       double histVal = histToFit->GetBinContent(i);
-      double histVar = pow(histToFit->GetBinError(i), 2);
 
-      chi2 += pow(histVal - funcVal, 2) / histVar;
+      if (!likelihoodMode) {
+        double histVar = pow(histToFit->GetBinError(i), 2);
+        // chi2
+        val += pow(histVal - funcVal, 2) / histVar;
+      } else {
+        // negative log likelihood
+        val -= histVal * (log(funcVal / histVal) + 1) - funcVal;
+      }
     }
 
-    return chi2;
+    if (likelihoodMode) {
+      // multiply by 2 if using log likelhood mode
+      // so that the minimizer will return the correct errors
+      val *= 2;
+    }
+    return val;
   }
 
   void setFitStart(double tStartIn) { tStart = tStartIn; }
@@ -218,6 +231,9 @@ class FullFitFunction {
   void setHistToFit(TH1D* histToFitIn) { histToFit = histToFitIn; }
   void setHistToFit(char* histName) {
     histToFit = (TH1D*)gROOT->FindObject(histName);
+  }
+  void setLikelihoodMode(bool likelihoodModeIn) {
+    likelihoodMode = likelihoodModeIn;
   }
 
   unsigned int getNIncludedBins() const {
@@ -236,6 +252,7 @@ class FullFitFunction {
   TH1D* histToFit;
   double tStart;
   double tEnd;
+  bool likelihoodMode;
 };
 
 FullFitFunction* fitFunc = nullptr;
