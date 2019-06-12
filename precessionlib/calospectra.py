@@ -376,6 +376,8 @@ class CaloSpectra:
 
         gain_pert is the size of the gain perturbation, e.g. -0.05
         for a 5% gain reduction
+
+        input array (counts) should have the energy axis as its first axis
         '''
 
         derivs = np.zeros_like(counts)

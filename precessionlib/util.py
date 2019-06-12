@@ -242,7 +242,7 @@ def update_par_graphs(x_val, fit, par_gs):
         except KeyError:
             g = r.TGraphErrors()
             g.GetYaxis().SetTitle(fit.GetParName(par_num))
-            g.SetName(f'par{par_num}')
+            g.SetName(strip_par_name(fit.GetParName(par_num)))
             par_gs[par_num] = g
 
         pt_num = g.GetN()

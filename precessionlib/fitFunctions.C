@@ -214,7 +214,12 @@ class FullFitFunction {
         val += pow(histVal - funcVal, 2) / histVar;
       } else {
         // negative log likelihood
-        val -= histVal * (log(funcVal / histVal) + 1) - funcVal;
+        if (histVal >= 10.0) {
+          // Stirling's approximation
+          val -= histVal * (log(funcVal / histVal) + 1) - funcVal;
+        } else {
+          val -= histVal * log(funcVal) - funcVal - lgamma(histVal + 1);
+        }
       }
     }
 
