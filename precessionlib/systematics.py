@@ -108,9 +108,11 @@ def build_pu_shifted_T_and_A(shift_in_bins, spec, fit_info, rebin=6):
 
     T_hist = master_2d.ProjectionX(f'TPUShifted{shift_in_bins}',
                                    fit_info['thresh_bin'], -1)
+    T_hist.SetTitle(f'T-Method, pu shift {shift_in_bins}')
 
     A_hist = build_a_weight_hist(master_2d, fit_info['a_model'],
                                  f'APUShifted{shift_in_bins}')
+    A_hist.SetTitle(f'A-Weighted, pu shift {shift_in_bins}')
 
     apply_pu_unc_factors(T_hist, A_hist, fit_info)
 
@@ -156,7 +158,7 @@ def ifg_amplitude_sweep(config, conf_dir):
     outs_T = []
     outs_A = []
     for scale in scales:
-        print(f'scale {scale}....')
+        print(f'scale {scale:.3f}....')
         out_T, out_A = fit_ifg_scaled_T_and_A(
             scale, cor_2d, delta_rho, fit_info, config)
         outs_T.append(out_T)
@@ -181,11 +183,13 @@ def build_ifg_scaled_T_and_A(scale_factor, cor_2d, delta_rho, fit_info):
     scaled_2d.SetName(f'scaled2D_{scale_factor}')
     scaled_2d.Add(delta_rho, float(1 - scale_factor))
 
-    T_hist = scaled_2d.ProjectionX(f'TScaled{scale_factor}',
+    T_hist = scaled_2d.ProjectionX(f'TScaled{scale_factor:.3f}',
                                    fit_info['thresh_bin'], -1)
+    T_hist.SetTitle(f'T-Method, IFG scale {scale_factor}')
 
     A_hist = build_a_weight_hist(
-        scaled_2d, fit_info['a_model'], f'AScaled{scale_factor}')
+        scaled_2d, fit_info['a_model'], f'AScaled{scale_factor:.3f}')
+    A_hist.SetTitle(f'A-Weighted, IFG scale {scale_factor}')
 
     apply_pu_unc_factors(T_hist, A_hist, fit_info)
 
@@ -200,6 +204,147 @@ def fit_ifg_scaled_T_and_A(scale_factor, cor_2d, delta_rho, fit_info, config):
 
     return fit_T_and_A(hist_T, hist_A, fit_info,
                        config, f'ifg_scale_{scale_factor}')
+
+
+#
+# Seed scan code
+#
+
+def seed_scan(config, conf_dir):
+    print('\n---\nRunning the seed scan\n---')
+
+    raw_f, fit_info = load_raw_and_analyzed_files(config, conf_dir)
+
+    # get expected ctag
+    cor_hist_dir = config['cor_hist_name'].split('/')[0]
+    ctag_hist = raw_f.Get(f'{cor_hist_dir}/ctag')
+    expected_ctag = ctag_hist.GetEntries()
+
+    print('Building 2d pileup spectrum for the seed scan...')
+    pu_2d = get_pileup_2d(fit_info['infile_name'], config)
+
+    print('running the seed scan...')
+
+    outs_T = []
+    outs_A = []
+    seed_num = 0
+    for file_name in config['input_files']:
+        r_file = r.TFile(f'{conf_dir}/{file_name}')
+        dir_names = get_dir_names(r_file)
+        for dir_name in dir_names:
+            seed_num += 1
+
+            print(f'seed {seed_num}...')
+            hist_name = f'{dir_name}/{config["seed_hist_names"]}'
+
+            out_T, out_A = fit_seed_T_and_A(r_file, hist_name, pu_2d,
+                                            expected_ctag, seed_num,
+                                            config, fit_info)
+
+            outs_T.append(out_T)
+            outs_A.append(out_A)
+
+    seed_nums = list(range(1, seed_num + 1))
+
+    # print summary info
+    rs_T = np.array([out[1].GetParameter(4) for out in outs_T])
+    rs_A = np.array([out[1].GetParameter(4) for out in outs_A])
+
+    print('\n Seed scan summary:')
+    print(f'{len(seed_nums)} seeds')
+    print(f'T-Method RMS: {np.std(rs_T)*1000:.1f} ppb')
+    print(f'A-Weighted RMS: {np.std(rs_A)*1000:.1f} ppb')
+
+    return outs_T, outs_A, seed_nums
+
+
+def get_dir_names(r_file):
+    ''' returns a list of the names of the directories in r_file '''
+    next_obj = r.TIter(r_file.GetListOfKeys())
+
+    dir_names = []
+    while True:
+        obj = next_obj()
+
+        if not obj:
+            break
+
+        if obj.GetClassName() == 'TDirectoryFile':
+            dir_names.append(obj.GetName())
+
+    return dir_names
+
+
+def get_pileup_2d(filename, conf, rebin=1):
+    ''' return the dataset's pu spectrum as a 2D root histogram'''
+
+    cor = CaloSpectra.from_root_file(filename, conf['cor_hist_name'])
+    uncor = CaloSpectra.from_root_file(filename, conf['uncor_hist_name'])
+
+    pu_3d = uncor.array - cor.array
+    pu_3d = rebinned_last_axis(pu_3d, rebin)
+
+    rebinned_axes = list(cor.axes)
+    rebinned_axes[-1] = rebinned_axes[-1][::rebin]
+
+    pu_hist_3d = CaloSpectra.build_root_hist(
+        pu_3d, rebinned_axes, 'seedScanPu3D')
+
+    pu_2d = pu_hist_3d.Project3D('yx')
+    pu_2d.SetName('seedScanPU2D')
+
+    return pu_2d
+
+
+def build_seed_T_and_A(r_file, hist_name, pu_2d,
+                       expected_ctag, seed_num, fit_info):
+    ''' build the T and A histograms for this random seed '''
+
+    # ensure the CTAG is correct
+    dir_name = hist_name.split('/')[0]
+    ctag_hist = r_file.Get(f'{dir_name}/ctag')
+    n_ctag = ctag_hist.GetEntries()
+
+    if n_ctag != expected_ctag:
+        f_name = r_file.GetName()
+        raise RuntimeError(
+            f'Incorrect ctag value from {f_name}, {hist_name}: {n_ctag}')
+
+    hist_3d = r_file.Get(hist_name)
+    uncor_2d = hist_3d.Project3D(f'yx_{seed_num}')
+    uncor_2d.SetName(f'uncor2d_{seed_num}')
+
+    cor_2d = uncor_2d.Clone()
+    cor_2d.SetName(f'cor2d_{seed_num}')
+    cor_2d.Add(pu_2d, -1)
+
+    T_hist = cor_2d.ProjectionX(f'TSeed{seed_num}',
+                                fit_info['thresh_bin'], -1)
+    T_hist.SetTitle(f'T-Method, seed {seed_num}')
+
+    T_hist.SetDirectory(0)
+
+    A_hist = build_a_weight_hist(cor_2d, fit_info['a_model'],
+                                 f'ASeed{seed_num}')
+    A_hist.SetTitle(f'A-Weighted, seed {seed_num}')
+
+    A_hist.SetDirectory(0)
+
+    apply_pu_unc_factors(T_hist, A_hist, fit_info)
+
+    return T_hist, A_hist
+
+
+def fit_seed_T_and_A(r_file, hist_name, pu_2d,
+                     expected_ctag, seed_num,
+                     config, fit_info):
+    _ = r.TCanvas()
+
+    ''' build the T and A histograms for a given random seed and fit them '''
+    hist_T, hist_A = build_seed_T_and_A(r_file, hist_name, pu_2d,
+                                        expected_ctag, seed_num, fit_info)
+
+    return fit_T_and_A(hist_T, hist_A, fit_info, config, f'seed_{seed_num}')
 
 #
 # Common code
@@ -267,13 +412,17 @@ def load_raw_and_analyzed_files(config, conf_dir):
     ''' common to all systematic sweeps:
     load the raw input file and the associated analysis output file'''
 
-    # load the raw file
-    rawf_name = f'{conf_dir}/{config["raw_file"]}'
-    raw_f = r.TFile(rawf_name)
-
-    # load the info from the analysis config file
+    # parse the fit configuration file
     with open(f'{conf_dir}/{config["fit_conf"]}') as file:
         fit_conf = json.load(file)
+
+    # load the raw file
+    try:
+        rawf_name = f'{conf_dir}/{config["raw_file"]}'
+    except KeyError:
+        rawf_name = fit_conf['file_name']
+
+    raw_f = r.TFile(rawf_name)
 
     ana_fname = f'{conf_dir}/../{fit_conf["out_dir"]}/'\
         f'{fit_conf["outfile_name"]}'
@@ -313,6 +462,7 @@ def load_fit_conf(fit_conf, ana_file):
         'a_model': a_model,
         'fit_start': fit_start,
         'fit_end': fit_end,
+        'infile_name': fit_conf['file_name'],
         'root_file': ana_file,
     }
 
@@ -378,16 +528,29 @@ def run_systematic_sweeps(conf_name):
         ifg_amp_out = ifg_amplitude_sweep(ifg_amp_conf, config_dir)
         print('\n---\nIFG amplitude sweep done\n---\n')
 
+    # seed scan
+    seed_conf = config.get('seed_scan')
+    seed_out = None
+    if seed_conf is not None and seed_conf['run_scan']:
+        seed_out = seed_scan(seed_conf, config_dir)
+        print('\n---\n Seed scan done\n---\n')
+
     # make output file
     outf_name = config['outfile_name']
     if not outf_name.endswith('.root'):
         outf_name += '.root'
 
     outf = r.TFile(outf_name, 'recreate')
+
     print('\n---\nMaking output file\n---\n')
     if pu_sweep_out is not None:
         make_output_dir(outf, *pu_sweep_out, 'pileupPhaseSweep',
                         'pileup time shift [#mus]')
+
     if ifg_amp_out is not None:
         make_output_dir(outf, *ifg_amp_out, 'ifgAmpSweep',
-                        'ifg amplitude multiplier')
+                        'IFG amplitude multiplier')
+
+    if seed_out is not None:
+        make_output_dir(outf, *seed_out, 'seedScan',
+                        'seed number')
