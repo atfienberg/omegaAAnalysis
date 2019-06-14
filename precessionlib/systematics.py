@@ -407,12 +407,12 @@ def gain_correct_3d(spec, ampl, tau, asym, oma, phi):
     pert = -1 * ampl * np.exp(-times / tau) * \
         (1 + asym * np.cos(oma * times - phi))
 
-    perturbed = np.empty_like(spec.array)
+    corrected = np.empty_like(spec.array)
     for i, calo_spec in enumerate(spec.array):
-        perturbed[i] = CaloSpectra.gain_perturb(
+        corrected[i] = CaloSpectra.gain_perturb(
             calo_spec, spec.energy_centers, pert)
 
-    return perturbed
+    return corrected
 
 
 def fit_gaincor_T_and_A(spec, ampl, tau, asym, oma, phi,
