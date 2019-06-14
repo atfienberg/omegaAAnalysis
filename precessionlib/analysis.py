@@ -707,6 +707,7 @@ def build_a_weight_hist(spec_2d, a_vs_e_spline, name,
     for e_bin in range(start_bin, end_bin):
         energy_slice = spec_2d.ProjectionX(
             f'{name}e_slice{e_bin}', e_bin, e_bin)
+        r.SetOwnership(energy_slice, True)
 
         energy = spec_2d.GetYaxis().GetBinCenter(e_bin)
 
