@@ -174,7 +174,7 @@ def make_systematics_plots(file_name, outdir, prefix):
                  'residualGainSweeps/asymmetrySweep',
                  'residualGainSweeps/phaseSweep']
 
-    xlabels = [r'$\Delta t_{pu}$ [ns]', r'$A_{IFG}$', '$\delta_{g}$',
+    xlabels = [r'$\Delta t_{pu}$ [$\mu s$]', r'$A_{IFG}$', '$\delta_{g}$',
                r'$\tau_g$ [$\mu s$]', r'$A_{g}$', '$\phi_{g}$']
 
     plot_seed_scan(r_file, prefix)
