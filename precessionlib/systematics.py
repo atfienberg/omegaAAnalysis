@@ -401,25 +401,6 @@ def residual_gain_phase_scan(amp, config, conf_dir):
 
         gc.collect()
 
-    # get some summary information
-    # range over which to report the sensitivity
-    # ref_range = 0.1
-
-    # asym_range = asyms[-1] - asyms[0]
-    # T_R_range = outs_T[-1][1].GetParameter(4) - outs_T[0][1].GetParameter(4)
-    # T_sens = ref_range * T_R_range / asym_range
-
-    # A_R_range = outs_A[-1][1].GetParameter(4) - outs_A[0][1].GetParameter(4)
-    # A_sens = ref_range * A_R_range / asym_range
-
-    # print('\nResidual gain asymlitude scan summary:')
-    # print(
-    #     'T-Method residual gain asymmetry sensitivity:'
-    #     f' {T_sens*1000:.1f} ppb / {ref_range * 100:.1f}%')
-    # print(
-    #     'A-Weighted residual gain asymmetry sensitivity:'
-    #     f' {A_sens*1000:.1f} ppb / {ref_range * 100:.1f}%')
-
     print('\n Phase scan completed!\n')
 
     return outs_T, outs_A, phases
