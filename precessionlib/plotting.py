@@ -177,12 +177,19 @@ def make_systematics_plots(file_name, outdir, prefix):
     xlabels = [r'$\Delta t_{pu}$ [$\mu s$]', r'$A_{IFG}$', '$\delta_{g}$',
                r'$\tau_g$ [$\mu s$]', r'$A_{g}$', '$\phi_{g}$']
 
-    plot_seed_scan(r_file, prefix)
-    plt.savefig(f'{outdir}/seedScan.pdf', bbox='tight')
-    plt.savefig(f'{outdir}/seedScan.png', bbox='tight')
-    plt.show()
+    if (r_file.Get('seedScan')):
+        plot_seed_scan(r_file, prefix)
+        plt.savefig(f'{outdir}/seedScan.pdf', bbox='tight')
+        plt.savefig(f'{outdir}/seedScan.png', bbox='tight')
+        plt.show()
+    else:
+        print(f'Seed scan not present in {file_name}')
 
     for dir_name, xlabel in zip(dir_names, xlabels):
+        if not r_file.Get(dir_name):
+            print(f'{dir_name} not present in {file_name}')
+            continue
+
         do_fit = dir_name not in [
             'pileupPhaseSweep', 'residualGainSweeps/tauSweep',
             'residualGainSweeps/phaseSweep']
