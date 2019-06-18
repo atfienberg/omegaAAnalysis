@@ -265,14 +265,15 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
 
     if len(pu_unc_factors):
         print('adjusting T-Method hist with pileup-corrected bin errors')
-        # one more fit using pu_uncertainty factors and sqrt(f) for bin error
+        # one more fit using pu_uncertainty factors
         if len(pu_unc_factors) != best_T_hist.GetNbinsX():
             raise ValueError('Number of T-Method pileup uncertainty factors'
                              ' does not match the number of bins'
                              ' in the T-Method histogram!')
 
         for i_bin in range(1, best_T_hist.GetNbinsX() + 1):
-            old_err = np.sqrt(best_T_hist.GetBinContent(i_bin))
+            content = best_T_hist.GetBinContent(i_bin)
+            old_err = np.sqrt(content) if content >= 0 else 0
             new_err = old_err * pu_unc_factors[i_bin - 1]
 
             best_T_hist.SetBinError(i_bin, new_err)
@@ -280,12 +281,13 @@ def T_method_analysis(all_calo_2d, blinder, config, pu_unc_factors=[]):
     resids, fft = fit_and_fft(
         best_T_hist, full_fit_tf1, 'fullFitAllCalos',
         config['fit_options'] + 'EM',
-        config['fit_start'], config['extended_fit_end'])
+        config['fit_start'], config['extended_fit_end'],
+        double_fit=True)
 
     print_fit_plots(best_T_hist, fft, cbo_freq, 'fullFitAllCalos', pdf_dir)
 
     # grab the covariance matrix from the full fit
-    fr = best_T_hist.Fit(full_fit_tf1, config['fit_options'] + 'EMS', '',
+    fr = best_T_hist.Fit(full_fit_tf1, 'EMS', '',
                          config['fit_start'], config['extended_fit_end'])
 
     corr_mat = fr.GetCorrelationMatrix()
@@ -1190,7 +1192,7 @@ def run_analysis(config):
 
     if len(A_weight_unc_facs):
         print('adjusting A-Weighted hist with pileup-corrected bin errors')
-        # one more fit using pu_uncertainty factors and sqrt(f) for bin error
+        # one more fit using pu_uncertainty factors
         if len(A_weight_unc_facs) != a_weight_hist.GetNbinsX():
             raise ValueError('Number of A-Weighted pileup uncertainty factors'
                              ' does not match the number of bins'
@@ -1206,6 +1208,7 @@ def run_analysis(config):
         a_weight_hist, a_weight_fit, 'fullFitAWeight',
         config['fit_options'] + 'EM',
         config['fit_start'], config['extended_fit_end'], double_fit=True)
+
     print_fit_plots(a_weight_hist, A_fft,
                     a_weight_fit.GetParameter(9) / 2 / math.pi,
                     'aWeightedFit', pdf_dir)

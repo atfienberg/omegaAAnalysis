@@ -197,9 +197,9 @@ class FullFitFunction {
   FullFitFunction()
       : histToFit(nullptr), tStart(0), tEnd(0), likelihoodMode(false) {}
 
-  double chi2Function(const double* p) {
-    unsigned int startBin = histToFit->FindBin(tStart);
-    unsigned int endBin = histToFit->FindBin(tEnd);
+  double chi2Function(const double* p) const {
+    const unsigned int startBin = getStartBin();
+    const unsigned int endBin = getEndBin();
 
     double val = 0;
 
@@ -242,15 +242,7 @@ class FullFitFunction {
   }
 
   unsigned int getNIncludedBins() const {
-    unsigned int startBin = histToFit->FindBin(tStart);
-    unsigned int endBin = histToFit->FindBin(tEnd);
-
-    unsigned int nBins = 0;
-    for (unsigned int i = startBin; i <= endBin; ++i) {
-      nBins += 1;
-    }
-
-    return nBins;
+    return getEndBin() - getStartBin() + 1;
   }
 
  private:
@@ -258,6 +250,26 @@ class FullFitFunction {
   double tStart;
   double tEnd;
   bool likelihoodMode;
+
+  unsigned int getStartBin() const {
+    unsigned int startBin = histToFit->FindBin(tStart);
+
+    if (histToFit->GetBinCenter(startBin) < tStart) {
+      startBin += 1;
+    }
+
+    return startBin;
+  }
+
+  unsigned int getEndBin() const {
+    unsigned int endBin = histToFit->FindBin(tEnd);
+
+    if (histToFit->GetBinCenter(endBin) > tEnd) {
+      endBin -= 1;
+    }
+
+    return endBin;
+  }
 };
 
 FullFitFunction* fitFunc = nullptr;
