@@ -171,10 +171,11 @@ def make_systematics_plots(file_name, outdir, prefix):
 
     dir_names = ['pileupPhaseSweep', 'ifgAmpSweep',
                  'residualGainSweeps/ampSweep', 'residualGainSweeps/tauSweep',
-                 'residualGainSweeps/asymmetrySweep']
+                 'residualGainSweeps/asymmetrySweep',
+                 'residualGainSweeps/phaseSweep']
 
-    xlabels = [r'$\Delta t_{pu}$', r'$A_{IFG}$', '$\delta_{g}$',
-               r'$\tau_g$', r'$A_{g}$']
+    xlabels = [r'$\Delta t_{pu}$ [ns]', r'$A_{IFG}$', '$\delta_{g}$',
+               r'$\tau_g$ [$\mu s$]', r'$A_{g}$', '$\phi_{g}$']
 
     plot_seed_scan(r_file, prefix)
     plt.savefig(f'{outdir}/seedScan.pdf', bbox='tight')
@@ -183,7 +184,8 @@ def make_systematics_plots(file_name, outdir, prefix):
 
     for dir_name, xlabel in zip(dir_names, xlabels):
         do_fit = dir_name not in [
-            'pileupPhaseSweep', 'residualGainSweeps/tauSweep']
+            'pileupPhaseSweep', 'residualGainSweeps/tauSweep',
+            'residualGainSweeps/phaseSweep']
 
         plot_sweep(r_file, dir_name, xlabel, prefix, fit=do_fit)
 

@@ -364,6 +364,67 @@ def residual_gain_asym_scan(amp, config, conf_dir):
     return outs_T, outs_A, asyms
 
 
+def residual_gain_phase_scan(amp, config, conf_dir):
+    ''' scan the phase of the "residual" gain correction '''
+    print('\n---\nResidual gain correction phase sweep\n---')
+
+    raw_f, fit_info, spec, oma, phi = prepare_residual_correction_scan(
+        config, conf_dir)
+
+    # run the scan
+    print('running residual gain correction phase scan...')
+
+    phases = [0]
+    phase = - np.pi
+    while phase <= np.pi:
+        phases.append(phase)
+        phase += np.abs(config['phi_step'])
+
+    phases = sorted(phases)
+
+    ref_tau = config['reference_tau']
+    ref_asym = config['reference_asym']
+
+    outs_T = []
+    outs_A = []
+    for phase in phases:
+        print(f'phase {phase:.3f}....')
+
+        name = f'residGainPhase{phase:.3f}'
+
+        out_T, out_A = fit_gaincor_T_and_A(spec, amp,
+                                           ref_tau, ref_asym, oma, phi + phase,
+                                           fit_info, name, config)
+
+        outs_T.append(out_T)
+        outs_A.append(out_A)
+
+        gc.collect()
+
+    # get some summary information
+    # range over which to report the sensitivity
+    # ref_range = 0.1
+
+    # asym_range = asyms[-1] - asyms[0]
+    # T_R_range = outs_T[-1][1].GetParameter(4) - outs_T[0][1].GetParameter(4)
+    # T_sens = ref_range * T_R_range / asym_range
+
+    # A_R_range = outs_A[-1][1].GetParameter(4) - outs_A[0][1].GetParameter(4)
+    # A_sens = ref_range * A_R_range / asym_range
+
+    # print('\nResidual gain asymlitude scan summary:')
+    # print(
+    #     'T-Method residual gain asymmetry sensitivity:'
+    #     f' {T_sens*1000:.1f} ppb / {ref_range * 100:.1f}%')
+    # print(
+    #     'A-Weighted residual gain asymmetry sensitivity:'
+    #     f' {A_sens*1000:.1f} ppb / {ref_range * 100:.1f}%')
+
+    print('\n Phase scan completed!\n')
+
+    return outs_T, outs_A, phases
+
+
 def prepare_residual_correction_scan(config, conf_dir):
     ''' common preparation for all scans involving the
     residual gain correction '''
@@ -799,6 +860,8 @@ def run_systematic_sweeps(conf_name):
         resid_g_tau_out = residual_gain_tau_scan(amp, resid_g_conf, config_dir)
         resid_g_asym_out = residual_gain_asym_scan(
             amp, resid_g_conf, config_dir)
+        resid_g_phase_out = residual_gain_phase_scan(
+            amp, resid_g_conf, config_dir)
 
         print('\n---\nResidual gain sweeps done\n---\n')
 
@@ -835,6 +898,8 @@ def run_systematic_sweeps(conf_name):
                         'residual gain lifetime [#mus]')
         make_output_dir(resid_g_dir, *resid_g_asym_out, 'asymmetrySweep',
                         'residual gain asymmetry')
+        make_output_dir(resid_g_dir, *resid_g_phase_out, 'phaseSweep',
+                        'residual gain phase')
 
     if seed_out is not None:
         make_output_dir(outf, *seed_out, 'seedScan',
