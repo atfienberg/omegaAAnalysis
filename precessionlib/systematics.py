@@ -130,7 +130,14 @@ def ifg_amplitude_sweep(config, conf_dir):
     r.SetOwnership(cor_2d, True)
     cor_2d.SetName('IFGCorrected2D')
 
-    uncor = raw_f.Get(config['uncor_hist_name'])
+    try:
+        # check if a separate uncorrected raw filename is specified
+        uncor_f = r.TFile(f'{conf_dir}/{config["uncor_raw_f_name"]}')
+    except KeyError:
+        # use the same raw file for the uncorrected hist
+        uncor_f = raw_f
+
+    uncor = uncor_f.Get(config['uncor_hist_name'])
     uncor_2d = uncor.Project3D('yx_2')
     r.SetOwnership(uncor_2d, True)
     uncor_2d.SetName('IFGUncorrected2D')
