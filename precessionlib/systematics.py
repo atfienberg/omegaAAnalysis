@@ -32,10 +32,10 @@ def pileup_phase_sweep(config, conf_dir):
 
     spec = CaloSpectra.from_root_file(f'{conf_dir}/{config["raw_file"]}',
                                       config['hist_name'],
-                                      # do_triple=False,
                                       do_triple=True,
                                       single_param=True,
-                                      param_guess=2 * 1.25 / n_fills / 25)
+                                      param_guess=2 * 1.25 / n_fills / 25,
+                                      pu_time_max=650)
     print(f'estimated deadtimes per calo: {spec.estimated_deadtimes(n_fills)}')
 
     # run the scan

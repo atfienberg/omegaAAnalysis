@@ -33,11 +33,13 @@ class CaloSpectra:
     def __init__(self,
                  do_triple=False,
                  pu_energy_min=3500, pu_energy_max=6000,
-                 pu_time_min=30, single_param=False, param_guess=None):
+                 pu_time_min=30, pu_time_max=700,
+                 single_param=False, param_guess=None):
         self._do_triple = do_triple
         self._pu_emin = pu_energy_min
         self._pu_emax = pu_energy_max
         self._pu_tmin = pu_time_min
+        self._pu_tmax = pu_time_max
 
         self.single_param = single_param
         if single_param:
@@ -50,11 +52,13 @@ class CaloSpectra:
     def from_root_file(rootfilename, histname='master3D',
                        do_triple=False,
                        pu_energy_min=3500, pu_energy_max=6000,
-                       pu_time_min=30, single_param=False, param_guess=None):
+                       pu_time_min=30, pu_time_max=700,
+                       single_param=False, param_guess=None):
         ''' load 3d histogram from rootfile
         store numpy version of 3d hist + x, y, z axes'''
         out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max,
-                          pu_time_min, single_param, param_guess)
+                          pu_time_min, pu_time_max,
+                          single_param, param_guess)
 
         file = r.TFile(rootfilename)
         hist = file.Get(histname)
@@ -77,8 +81,11 @@ class CaloSpectra:
     def from_np_file(numpyfilename,
                      do_triple=False,
                      pu_energy_min=3500, pu_energy_max=6000,
-                     pu_time_min=30, single_param=False, param_guess=None):
-        out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max, pu_time_min)
+                     pu_time_min=30, pu_time_max=700,
+                     single_param=False, param_guess=None):
+        out = CaloSpectra(do_triple, pu_energy_min, pu_energy_max,
+                          pu_time_min, pu_time_max,
+                          single_param, param_guess)
 
         loaded = np.load(numpyfilename)
         out._axes = [loaded['calo'], loaded['energy'], loaded['time']]
@@ -302,7 +309,8 @@ class CaloSpectra:
     def build_delta_rho_pu(self, calo_num, rho_guess=None, do_triple=None,
                            ret_comps=False,
                            pu_energy_min=None, pu_energy_max=None,
-                           pu_time_min=None):
+                           pu_time_min=None,
+                           pu_time_max=None):
         '''build the delta_rho_pileup distribution for calo calo_num.
         if rho_guess is None, rho will be calo_spec(calo_num)
         otherwise, rho_guess will be the positron distribution.
@@ -334,6 +342,8 @@ class CaloSpectra:
             pu_energy_max = self._pu_emax
         if pu_time_min is None:
             pu_time_min = self._pu_tmin
+        if pu_time_max is None:
+            pu_time_max = self._pu_tmax
 
         # rho is the hit distribution from which we build the pu distribution
         rho = self.calo_spec(calo_num) if rho_guess is None else rho_guess
@@ -351,7 +361,8 @@ class CaloSpectra:
         try:
             norm_factors, cov = self._fit_pu_coeffs(
                 calo_num, components,
-                pu_energy_min, pu_energy_max, pu_time_min)
+                pu_energy_min, pu_energy_max,
+                pu_time_min, pu_time_max)
         except ValueError:
             # no high count pileup bins, set the coefficients to zero
             print('Failure to fit pileup coefficients'
@@ -430,7 +441,8 @@ class CaloSpectra:
         return [trip_sum, trip_term_two, trip_term_three]
 
     def _fit_pu_coeffs(self, calo_num, pu_comps,
-                       pu_energy_min, pu_energy_max, pu_time_min,
+                       pu_energy_min, pu_energy_max,
+                       pu_time_min, pu_time_max,
                        min_counts=20):
         ''' fit the scale/normalization factors for the pileup components
         pu_comps is a list of the pileup components, e.g. [doubles, triples]
@@ -439,7 +451,9 @@ class CaloSpectra:
         energies = np.logical_and(
             self.energy_centers > pu_energy_min,
             self.energy_centers < pu_energy_max)
-        times = self.time_centers > pu_time_min
+        times = np.logical_and(
+            self.time_centers > pu_time_min,
+            self.time_centers < pu_time_max)
 
         # perturbed energy spectrum
         perturbed = self.calo_spec(calo_num)[:, times][energies, :].sum(axis=1)

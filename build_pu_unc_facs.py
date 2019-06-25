@@ -52,7 +52,8 @@ def main():
     spec = CaloSpectra.from_root_file(input_f_name,
                                       histname=uncor_name, do_triple=True,
                                       single_param=True,
-                                      param_guess=2 * 1.25 / n_fills / 150)
+                                      param_guess=2 * 1.25 / n_fills / 150,
+                                      pu_time_max=650)
 
     # get T-Method energy threshold
     E_thresh = get_E_thresh(output_root_f)

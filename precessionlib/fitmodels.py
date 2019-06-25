@@ -14,7 +14,7 @@ import copy
 file_dir = os.path.dirname(os.path.realpath(__file__))
 r.gROOT.ProcessLine(f'.L {file_dir}/fitFunctions.C+')
 
-# some strings for  building root TF1's
+# some strings for building root TF1's
 five_param_str = '[0]*exp(-x/[1])*(1+' +\
     '[2]*cos(x*[5]*(1+[4]*1e-6))+[3]*sin(x*[5]*(1+[4]*1e-6)))'
 
