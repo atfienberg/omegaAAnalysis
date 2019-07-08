@@ -36,6 +36,16 @@ def is_free_param(func, par_num):
     return min_val != max_val or min_val == 0 and max_val == 0
 
 
+def is_limited_param(func, par_num):
+    ''' check if a parameter is limited
+    but floating in the fit '''
+    min_val = r.Double()
+    max_val = r.Double()
+    func.GetParLimits(par_num, min_val, max_val)
+
+    return is_free_param(func, par_num) and min_val != max_val
+
+
 def get_par_index(func, par_name):
     ''' returns parameter index of par with name par_name'''
     for par_num in range(func.GetNpar()):
