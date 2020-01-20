@@ -14,12 +14,13 @@ from precessionlib.calospectra import CaloSpectra
 from precessionlib.util import rebinned_last_axis
 
 
-def build_root_hists(filename, histname, nonrand_name, rebin_factor):
+def build_root_hists(filename, histname, n_fills,
+                     nonrand_name, rebin_factor):
     '''
     use CaloSpectra to build pileup corrected and non corrected 3d hists
     returns uncorrected, corrected, pileup_normalizations
     '''
-    par_guess = 2 * 1.25 / 1.4e6 / 25
+    par_guess = 2 * 1.25 / n_fills / 25
     spec = CaloSpectra.from_root_file(filename, histname, do_triple=True,
                                       single_param=True,
                                       param_guess=par_guess)
@@ -58,16 +59,20 @@ def main():
     infile_name = sys.argv[1]
     file = r.TFile(infile_name)
 
-    # dirs = ['clustersAndCoincidences',
-    #         'clustersAndCoincidencesNoGainCorrection']
-
     dirs = ['clustersAndCoincidences']
 
     hists = []
 
     for dir_name in dirs:
+        inf = r.TFile(infile_name)
+        ctag_hist = inf.Get(f'{dir_name}/ctag')
+        n_fills = ctag_hist.GetEntries()
+
+        print(f'{n_fills} fills')
+
         uncorrected, corrected = build_root_hists(
             infile_name, nonrand_name=f'{dir_name}/clusters',
+            n_fills=n_fills,
             histname='clustersAndCoincidencesRand/clusters',
             rebin_factor=6)
 
