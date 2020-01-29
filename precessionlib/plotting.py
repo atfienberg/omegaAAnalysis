@@ -169,7 +169,7 @@ def make_systematics_plots(file_name, outdir, prefix):
 
     subprocess.call(f'mkdir -p {outdir}'.split())
 
-    dir_names = ['pileupPhaseSweep', 'ifgAmpSweep',
+    dir_names = ['pileupPhaseSweep', 'ifgAmpSweep', 'stdpAmpSweep',
                  'residualGainSweeps/ampSweep', 'residualGainSweeps/tauSweep',
                  'residualGainSweeps/asymmetrySweep',
                  'residualGainSweeps/phaseSweep']
