@@ -174,8 +174,8 @@ def make_systematics_plots(file_name, outdir, prefix):
                  'residualGainSweeps/asymmetrySweep',
                  'residualGainSweeps/phaseSweep']
 
-    xlabels = [r'$\Delta t_{pu}$ [$\mu s$]', r'$A_{IFG}$', '$\delta_{g}$',
-               r'$\tau_g$ [$\mu s$]', r'$A_{g}$', '$\phi_{g}$']
+    xlabels = [r'$\Delta t_{pu}$ [$\mu s$]', r'$A_{IFG}$', r'$A_{STDP}$',
+               '$\delta_{g}$', r'$\tau_g$ [$\mu s$]', r'$A_{g}$', '$\phi_{g}$']
 
     if (r_file.Get('seedScan')):
         plot_seed_scan(r_file, prefix)
