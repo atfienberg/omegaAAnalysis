@@ -427,3 +427,27 @@ def prepare_loss_hist(config, T_meth_hist, tau=64.44):
 
     # return histograms
     return lost_muon_cumulative, lost_muon_rate, lost_muon_prob
+
+
+# CBO envelope hacks to get systematic scans done for February 2019 meeting
+
+
+def set_cbo_envelope(env_name):
+    r.setCBOEnvelopeNum(set_cbo_envelope.env_dict[env_name])
+
+
+set_cbo_envelope.env_dict = {
+    'exponential': 0,
+    'offsetExponential': 1,
+    'beamDynamics': 2,
+    'gaussian': 3
+}
+
+
+def get_cbo_envelope():
+    env_num = r.cboEnvNum
+    for key, value in set_cbo_envelope.env_dict.items():
+        if value == env_num:
+            return key
+
+    return 'invalid'

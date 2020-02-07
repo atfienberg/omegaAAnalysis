@@ -23,19 +23,34 @@ void initializeLossHist(const char* histName) {
 // do not call this before initializing the loss hist ptr
 double cumuLoss(double x) { return cumuLossHist->Interpolate(x); }
 
+// hack to get systematic scans done for February 2019 meeting
+int cboEnvNum = 0;
+void setCBOEnvelopeNum(int newEnvNum) { cboEnvNum = newEnvNum; }
+
 double cboEnvelope(double t, double param) {
   // test
   const double tau_cbo = param;
-  // if (t > 50) {
-  //   return exp(-t / tau_cbo);
-  // } else {
-  //   return exp(-50 / tau_cbo);
-  // }
-  return exp(-t / tau_cbo);
-  // return exp(-t / tau_cbo) + 0.15;
-  // return exp(-t / tau_cbo) * (1 + 0.135 * cos(0.00874 * t - 0.48));
-  // gaus because why not
-  // return exp(-t * t / tau_cbo / tau_cbo);
+
+  if (cboEnvNum == 0) {
+    return exp(-t / tau_cbo);
+  }
+
+  else if (cboEnvNum == 1) {
+    return exp(-t / tau_cbo) + 0.15;
+  }
+
+  else if (cboEnvNum == 2) {
+    return exp(-t / tau_cbo) * (1 + 0.135 * cos(0.00874 * t - 0.48));
+  }
+
+  else if (cboEnvNum == 3) {
+    // gaus because why not
+    return exp(-t * t / tau_cbo / tau_cbo);
+  }
+
+  else {
+    return -1;
+  }
 }
 
 // CBO frequency models
