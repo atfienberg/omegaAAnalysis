@@ -247,7 +247,7 @@ def build_full_fit_tf1(loss_f, config, name='fullFit', f_c=1.0 / 0.149):
 
         full_fit_tf1.SetParName(30, '#delta_{y}')
         if include_y_osc:
-            full_fit_tf1.SetParameter(13, 0)
+            full_fit_tf1.SetParameter(30, 0)
 
     apply_fit_conf_full(full_fit_tf1, config)
 
